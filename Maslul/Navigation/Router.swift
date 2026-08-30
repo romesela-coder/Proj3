@@ -24,6 +24,8 @@ enum JournalRoute: Hashable {
 
 enum MeRoute: Hashable {
     case projects
+    case timeReport
+    case goals
     case export
     case privacy
     case reminder
@@ -34,11 +36,14 @@ enum MeRoute: Hashable {
 enum SheetRoute: Identifiable {
     case capture(EntryType?)
     case entry(Entry)
+    /// The weekly ritual: tidy straight into the allocation.
+    case ritual(atAllocation: Bool)
 
     var id: String {
         switch self {
         case .capture(let type): return "capture-\(type?.rawValue ?? "free")"
         case .entry(let entry): return "entry-\(entry.persistentModelID.hashValue)"
+        case .ritual(let atAllocation): return "ritual-\(atAllocation)"
         }
     }
 }
@@ -56,6 +61,10 @@ final class Router {
 
     func open(_ entry: Entry) {
         sheet = .entry(entry)
+    }
+
+    func startRitual(atAllocation: Bool = false) {
+        sheet = .ritual(atAllocation: atAllocation)
     }
 
     func openJournal(_ preset: JournalPreset) {

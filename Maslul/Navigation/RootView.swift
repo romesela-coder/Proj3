@@ -23,6 +23,8 @@ struct RootView: View {
                 CaptureView(presetType: type)
             case .entry(let entry):
                 EntryDetailView(entry: entry)
+            case .ritual(let atAllocation):
+                RitualView(startAtAllocation: atAllocation)
             }
         }
     }
@@ -48,6 +50,8 @@ struct RootView: View {
                         .navigationDestination(for: MeRoute.self) { route in
                             switch route {
                             case .projects: ProjectsView()
+                            case .timeReport: TimeReportView()
+                            case .goals: GoalsView()
                             case .export: ExportView()
                             case .privacy: PrivacyView()
                             case .reminder: ReminderView()

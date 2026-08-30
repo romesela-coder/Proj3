@@ -180,7 +180,58 @@ enum Exporter {
     }
 }
 
-private extension ISO8601DateFormatter {
+// MARK: - Time allocation report (§11, US-G4)
+
+extension Exporter {
+    /// A standalone document for the range, with the weekly notes and the
+    /// count of skipped weeks. A report that hides how many weeks are missing
+    /// from it is not evidence.
+    static func exportTimeReport(_ report: TimeReport, range: ExportRange) throws -> URL {
+        var out = "# דוח הקצאת זמן\n\n"
+        out += "טווח: \(range.title)  \n"
+        out += "יוצא בתאריך: \(Fmt.longDate(.now))  \n"
+        out += "שבועות שדווחו: \(report.recordedWeeks)  \n"
+        out += "שבועות שדולגו: \(report.skippedWeeks)\n\n"
+        out += "> \(TimeReport.disclaimer)\n\n---\n\n"
+
+        out += "## לפי פרויקט\n\n"
+        for line in report.lines {
+            out += "- **\(line.project.name)** · \(Int(line.percent.rounded()))% · \(line.project.origin.title)\n"
+        }
+
+        out += "\n## לפי מקור המשימה\n\n"
+        for item in report.originSplit {
+            out += "- \(item.origin.title) · \(Int(item.percent.rounded()))%\n"
+        }
+
+        if !report.buckets.isEmpty {
+            out += "\n## לפי תקופה\n"
+            for bucket in report.buckets {
+                out += "\n### \(bucket.label)\n"
+                for line in report.lines {
+                    let share = bucket.shares[line.id] ?? 0
+                    guard share > 0 else { continue }
+                    out += "- \(line.project.name): \(Int(share.rounded()))%\n"
+                }
+            }
+        }
+
+        if !report.notes.isEmpty {
+            out += "\n## הערות שבועיות\n\n"
+            for item in report.notes {
+                out += "- \(Week.label(item.week)): \(item.note)\n"
+            }
+        }
+
+        let stamp = ISO8601DateFormatter.filenameStamp.string(from: .now)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("maslul-time-\(stamp).md")
+        try out.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+}
+
+extension ISO8601DateFormatter {
     static let filenameStamp: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withYear, .withMonth, .withDay, .withDashSeparatorInDate]

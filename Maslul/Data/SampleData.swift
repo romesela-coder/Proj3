@@ -81,6 +81,7 @@ enum SampleData {
             Seed(90, .people, 4, .s, "עבדתי צמוד לשיווק לראשונה. הבנתי כמה מעט הם יודעים על מה שאנחנו בונים.")
         ]
 
+        var created: [Entry] = []
         for seed in seeds {
             guard let date = cal.date(byAdding: .day, value: -seed.daysAgo, to: now) else { continue }
             let stamped = cal.date(
@@ -95,9 +96,77 @@ enum SampleData {
             entry.effort = seed.effort
             entry.sensitivity = seed.sensitive ? .sensitive : .normal
             context.insert(entry)
+            created.append(entry)
         }
 
+        seedGoals(context: context, entries: created, now: now)
+        seedAllocations(context: context, projects: projects, now: now)
+
         try? context.save()
+    }
+
+    // MARK: - Goals
+
+    private static func seedGoals(context: ModelContext, entries: [Entry], now: Date) {
+        let current = Quarter.current(now)
+        let previous = current.previous
+
+        let infra = Goal(title: "בעלות על תחום התשתית", metric: "3 מסמכי עיצוב שאני מוביל", quarter: current)
+        let fires = Goal(title: "פחות זמן בכיבוי שרפות", metric: "עד 20% מהרשומות בתפעול", quarter: current)
+        context.insert(infra)
+        context.insert(fires)
+
+        let mentoring = Goal(title: "מנטורינג לג׳וניור אחד", metric: "פגישה שבועית קבועה", quarter: previous)
+        mentoring.closedAt = previous.interval.end
+        mentoring.closingNote = "התחיל טוב ונשחק אחרי אפריל. הזמן הלך לטיקטים."
+        context.insert(mentoring)
+
+        // A handful of links, so the goals screen has both a goal that got
+        // attention and one that got almost none.
+        for entry in entries.prefix(18) where entry.type == .win || entry.type == .decision {
+            if current.interval.contains(entry.createdAt) { entry.goal = infra }
+        }
+        for entry in entries where entry.type == .friction && current.interval.contains(entry.createdAt) {
+            entry.goal = fires
+            break
+        }
+    }
+
+    // MARK: - Weekly allocations
+
+    private static func seedAllocations(context: ModelContext, projects: [Project], now: Date) {
+        let active = Array(projects.prefix(4))
+        guard !active.isEmpty else { return }
+
+        // Thirteen weeks, two of them deliberately missing — a report that
+        // never shows a gap isn't telling the truth.
+        let shapes: [[Int]] = [
+            [12, 58, 22, 8], [15, 54, 23, 8], [9, 61, 22, 8], [18, 49, 25, 8],
+            [22, 44, 26, 8], [26, 41, 25, 8], [31, 38, 23, 8], [28, 42, 22, 8],
+            [34, 34, 24, 8], [30, 39, 23, 8], [24, 46, 22, 8]
+        ]
+        let skipped: Set<Int> = [4, 9]
+
+        var shapeIndex = 0
+        for weeksBack in stride(from: 12, through: 0, by: -1) {
+            if skipped.contains(weeksBack) { continue }
+            guard shapeIndex < shapes.count else { break }
+            defer { shapeIndex += 1 }
+
+            let weekStart = Week.offset(-weeksBack, from: now)
+            let allocation = WeeklyAllocation(weekStart: weekStart)
+            if weeksBack == 6 { allocation.note = "שבוע קצר בגלל חג" }
+            if weeksBack == 2 { allocation.note = "שני ימים על תקלת ייצור" }
+            context.insert(allocation)
+
+            for (i, project) in active.enumerated() {
+                let percent = shapes[shapeIndex][min(i, shapes[shapeIndex].count - 1)]
+                guard percent > 0 else { continue }
+                let slice = AllocationSlice(percent: percent, project: project)
+                context.insert(slice)
+                slice.allocation = allocation
+            }
+        }
     }
 
     /// Wipes every entry and project. Used only to get back to a clean first
@@ -110,6 +179,10 @@ enum SampleData {
         }
         let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
         projects.forEach { context.delete($0) }
+        let goals = (try? context.fetch(FetchDescriptor<Goal>())) ?? []
+        goals.forEach { context.delete($0) }
+        let allocations = (try? context.fetch(FetchDescriptor<WeeklyAllocation>())) ?? []
+        allocations.forEach { context.delete($0) }
         try? context.save()
     }
 }

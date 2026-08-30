@@ -28,6 +28,10 @@ final class Entry {
 
     var project: Project?
 
+    /// Link to an active quarterly goal (§06, `goalRef`). Optional — most
+    /// entries never belong to a declared goal, and that is itself the finding.
+    var goal: Goal?
+
     init(
         body: String = "",
         createdAt: Date = .now,

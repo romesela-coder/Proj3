@@ -46,7 +46,8 @@ struct HomeView: View {
             }
             Spacer()
             CircleButton(symbol: "bell", badge: pendingCount) {
-                router.journalPath = [.journal(.pending)]
+                // The counter is the entry point to the weekly tidy (F2).
+                router.startRitual()
             }
         }
         .padding(.horizontal, Metrics.hMargin)
@@ -109,7 +110,7 @@ struct HomeView: View {
                 .padding(.top, 4)
         } else if pendingCount > 0 {
             Button {
-                router.journalPath = [.journal(.pending)]
+                router.startRitual()
             } label: {
                 Text("\(pendingCount) רשומות ממתינות לסידור")
                     .font(.bodyText(12.5))
@@ -118,10 +119,15 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
         } else {
-            Text("\(entries.count) רשומות ביומן")
-                .font(.bodyText(12.5))
-                .foregroundStyle(Palette.meta)
-                .frame(maxWidth: .infinity, alignment: .center)
+            Button {
+                router.journalPath = [.journal(.all)]
+            } label: {
+                Text("\(entries.count) רשומות ביומן")
+                    .font(.bodyText(12.5))
+                    .foregroundStyle(Palette.meta)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .buttonStyle(.plain)
         }
     }
 }

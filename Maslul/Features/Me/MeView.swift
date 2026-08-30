@@ -13,6 +13,9 @@ struct MeView: View {
 
     @Query(sort: \Entry.createdAt, order: .reverse) private var entries: [Entry]
     @Query private var projects: [Project]
+    @Query private var goals: [Goal]
+    @Query(sort: \WeeklyAllocation.weekStart, order: .reverse)
+    private var allocations: [WeeklyAllocation]
 
     @State private var showClearConfirm = false
 
@@ -28,6 +31,28 @@ struct MeView: View {
                     .padding(.bottom, 12)
 
                 stats
+
+                SectionLabel(text: "הטקס השבועי").padding(.top, 20).padding(.bottom, 2)
+
+                Button { router.startRitual() } label: {
+                    SettingRow(
+                        symbol: "checklist",
+                        title: "סידור שבועי",
+                        subtitle: pendingCount == 0
+                            ? "אין רשומות ממתינות"
+                            : "\(pendingCount) רשומות ממתינות"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button { router.startRitual(atAllocation: true) } label: {
+                    SettingRow(
+                        symbol: "slider.horizontal.3",
+                        title: "הקצאת זמן שבועית",
+                        subtitle: allocationSubtitle
+                    )
+                }
+                .buttonStyle(.plain)
 
                 SectionLabel(text: "שליפה").padding(.top, 20).padding(.bottom, 2)
 
@@ -50,22 +75,20 @@ struct MeView: View {
                 }
                 .buttonStyle(.plain)
 
-                Button { router.mePath.append(.roadmap) } label: {
+                Button { router.mePath.append(.timeReport) } label: {
                     SettingRow(
                         symbol: "chart.bar",
                         title: "דוח הקצאת זמן",
-                        subtitle: "בגרסה 0.2",
-                        isEnabled: false
+                        subtitle: reportSubtitle
                     )
                 }
                 .buttonStyle(.plain)
 
-                Button { router.mePath.append(.roadmap) } label: {
+                Button { router.mePath.append(.goals) } label: {
                     SettingRow(
                         symbol: "target",
-                        title: "מטרות הרבעון",
-                        subtitle: "בגרסה 0.2",
-                        isEnabled: false
+                        title: "מטרות מול מציאות",
+                        subtitle: goalsSubtitle
                     )
                 }
                 .buttonStyle(.plain)
@@ -220,6 +243,24 @@ struct MeView: View {
         guard !typed.isEmpty else { return "—" }
         let friction = typed.filter { $0.type == .friction }.count
         return "\(Int((Double(friction) / Double(typed.count) * 100).rounded()))%"
+    }
+
+    private var pendingCount: Int { entries.filter(\.needsTidy).count }
+
+    private var allocationSubtitle: String {
+        guard let latest = allocations.first else { return "עוד לא הוצהר שבוע" }
+        return Calendar.current.isDate(latest.weekStart, inSameDayAs: Week.start())
+            ? "השבוע הוצהר"
+            : "אחרון: \(Week.label(latest.weekStart))"
+    }
+
+    private var reportSubtitle: String {
+        allocations.isEmpty ? "אין עדיין נתונים" : "\(allocations.count) שבועות מדווחים"
+    }
+
+    private var goalsSubtitle: String {
+        let open = goals.filter(\.isCurrent).count
+        return open == 0 ? "לא הוגדרו מטרות לרבעון" : "\(open) פעילות · \(Quarter.current().shortTitle)"
     }
 
     private var timeText: String {
