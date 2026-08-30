@@ -17,8 +17,11 @@ struct TidyCardView: View {
     @State private var offset: CGFloat = 0
     @State private var showTypePicker = false
     @State private var showProjectPicker = false
+    @State private var sourceLabel = ""
+    @State private var isThinking = false
+    /// Once the user corrects anything, a late model answer must not overwrite it.
+    @State private var userTouched = false
 
-    private let suggester = HeuristicSuggester()
     private static let swipeThreshold: CGFloat = 110
 
     var body: some View {
@@ -31,19 +34,19 @@ struct TidyCardView: View {
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
-        .task { draft = suggester.suggest(for: entry, projects: projects, goals: goals) }
+        .task { await loadSuggestions() }
         .confirmationDialog("סוג", isPresented: $showTypePicker, titleVisibility: .visible) {
             ForEach(EntryType.allCases) { type in
-                Button(type.title) { draft.type = type }
+                Button(type.title) { edit { draft.type = type } }
             }
-            Button("ללא סוג", role: .destructive) { draft.type = nil }
+            Button("ללא סוג", role: .destructive) { edit { draft.type = nil } }
             Button("ביטול", role: .cancel) {}
         }
         .confirmationDialog("פרויקט", isPresented: $showProjectPicker, titleVisibility: .visible) {
             ForEach(projects) { project in
-                Button(project.name) { draft.project = project }
+                Button(project.name) { edit { draft.project = project } }
             }
-            Button("ללא פרויקט", role: .destructive) { draft.project = nil }
+            Button("ללא פרויקט", role: .destructive) { edit { draft.project = nil } }
             Button("ביטול", role: .cancel) {}
         }
     }
@@ -94,9 +97,13 @@ struct TidyCardView: View {
                 HStack(spacing: 6) {
                     SectionLabel(text: "הצעות")
                         .fixedSize()
-                    Text(suggester.sourceLabel)
+                    Text(sourceLabel)
                         .font(.bodyText(11))
                         .foregroundStyle(Palette.meta)
+                    if isThinking {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
                     Spacer()
                 }
 
@@ -117,7 +124,7 @@ struct TidyCardView: View {
                 suggestionRow(label: "מאמץ") {
                     ForEach(Effort.allCases) { effort in
                         Chip(title: effort.title, isOn: draft.effort == effort) {
-                            draft.effort = (draft.effort == effort) ? nil : effort
+                            edit { draft.effort = (draft.effort == effort) ? nil : effort }
                         }
                     }
                 }
@@ -137,8 +144,10 @@ struct TidyCardView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 6)
                     Chip(title: draft.goal == nil ? "קשר" : "נתק", isOn: draft.goal != nil) {
-                        withAnimation(Motion.spring) {
-                            draft.goal = draft.goal == nil ? goal : nil
+                        edit {
+                            withAnimation(Motion.spring) {
+                                draft.goal = draft.goal == nil ? goal : nil
+                            }
                         }
                     }
                 }
@@ -209,6 +218,33 @@ struct TidyCardView: View {
                 .frame(maxWidth: .infinity)
         }
         .padding(.bottom, 14)
+    }
+
+    private func edit(_ change: () -> Void) {
+        userTouched = true
+        change()
+    }
+
+    /// Two phases: the keyword result appears instantly so the card is never
+    /// empty, then the on-device model replaces it if this device has one and
+    /// the user hasn't already answered.
+    private func loadSuggestions() async {
+        let heuristic = HeuristicSuggester()
+        draft = heuristic.classify(entry, projects: projects, goals: goals)
+        sourceLabel = heuristic.sourceLabel
+
+        let suggester = SuggesterFactory.make()
+        guard !(suggester is HeuristicSuggester) else { return }
+
+        isThinking = true
+        let refined = await suggester.suggest(for: entry, projects: projects, goals: goals)
+        isThinking = false
+
+        guard !userTouched else { return }
+        withAnimation(Motion.spring) {
+            draft = refined
+            sourceLabel = suggester.sourceLabel
+        }
     }
 
     private func commit(confirm: Bool) {

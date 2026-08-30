@@ -146,6 +146,14 @@ struct MeView: View {
                 .buttonStyle(.plain)
 
                 SettingRow(
+                    symbol: "sparkles",
+                    title: "מודל מקומי",
+                    subtitle: SuggesterFactory.availabilityNote
+                ) {
+                    EmptyView()
+                }
+
+                SettingRow(
                     symbol: "faceid",
                     title: "נעילה ב-Face ID",
                     subtitle: "בגרסה 1.0",

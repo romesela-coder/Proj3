@@ -10,22 +10,22 @@ struct Suggestion {
     var isEmpty: Bool { type == nil && project == nil && effort == nil && goal == nil }
 }
 
-/// §13 puts classification on Apple's on-device model. That model needs
-/// iOS 26 with Apple Intelligence enabled, and it is absent from the simulator,
-/// so the shipping implementation here is the fallback the spec already
-/// requires: the screen opens either way, and every suggestion is correctable
-/// in one tap.
+/// Two implementations sit behind this: Apple's on-device model where the
+/// hardware and OS allow it (§13), and keyword matching everywhere else.
 ///
-/// This is keyword matching, not a language model, and the UI says so. The
-/// seam is deliberate — a `FoundationModelsSuggester` conforming to the same
-/// protocol drops in without touching the flow.
+/// Async because the model is; `@MainActor` so SwiftData objects never cross
+/// an actor boundary.
+@MainActor
 protocol Suggesting {
     var sourceLabel: String { get }
-    func suggest(for entry: Entry, projects: [Project], goals: [Goal]) -> Suggestion
+    func suggest(for entry: Entry, projects: [Project], goals: [Goal]) async -> Suggestion
 }
 
+/// The fallback the spec requires: the tidy screen opens either way, and every
+/// suggestion is one tap from being corrected. Keyword matching, not a model,
+/// and the UI says so.
 struct HeuristicSuggester: Suggesting {
-    var sourceLabel: String { "מבוסס מילות מפתח, לא מודל" }
+    var sourceLabel: String { "מבוסס מילות מפתח" }
 
     // Friction first: it is the most specific, and the type most likely to be
     // quietly dropped if the guess goes the flattering way (§16).
@@ -47,7 +47,13 @@ struct HeuristicSuggester: Suggesting {
     private static let heavy = ["שבועות", "שלושה שבועות", "חודש", "חודשים", "מסמך העיצוב"]
     private static let medium = ["ימים", "יומיים", "שלושה ימים", "שעתיים"]
 
-    func suggest(for entry: Entry, projects: [Project], goals: [Goal]) -> Suggestion {
+    func suggest(for entry: Entry, projects: [Project], goals: [Goal]) async -> Suggestion {
+        classify(entry, projects: projects, goals: goals)
+    }
+
+    /// Synchronous, so the card can show something the instant it appears while
+    /// the model — if there is one — is still thinking.
+    func classify(_ entry: Entry, projects: [Project], goals: [Goal]) -> Suggestion {
         let body = entry.body.lowercased()
 
         var suggestion = Suggestion()
@@ -94,5 +100,36 @@ struct HeuristicSuggester: Suggesting {
                 .filter { $0.count >= 4 }
             return words.contains { body.contains($0) }
         }
+    }
+}
+
+
+// MARK: - Picking one
+
+enum SuggesterFactory {
+    /// The on-device model when the device can actually run it, keyword
+    /// matching otherwise. Nothing else in the app has to know which it got.
+    @MainActor
+    static func make() -> any Suggesting {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *), FoundationModelsSuggester.isAvailable {
+            return FoundationModelsSuggester()
+        }
+        #endif
+        return HeuristicSuggester()
+    }
+
+    /// Why the model isn't being used, when it isn't. Shown in settings so the
+    /// answer is never a mystery.
+    @MainActor
+    static var availabilityNote: String {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *) {
+            return FoundationModelsSuggester.availabilityNote
+        }
+        return "המודל המקומי דורש iOS 26. המכשיר הזה מריץ גרסה מוקדמת יותר."
+        #else
+        return "הבילד הזה נבנה עם SDK ישן מ-iOS 26, ולכן המודל המקומי לא נכלל בו."
+        #endif
     }
 }

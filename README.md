@@ -93,13 +93,25 @@ a dark palette.
 person's journal, and SwiftData predicates over optional relationships cost
 more in bugs than they save here.
 
-**Tidy suggestions are keyword matching, not a language model.** §13 puts
-classification on Apple's on-device `SystemLanguageModel`, which needs iOS 26
-with Apple Intelligence and is absent from the simulator. What ships is the
-fallback the spec already requires — the screen opens either way and every
-suggestion is one tap from being corrected — behind a `Suggesting` protocol so
-a `FoundationModelsSuggester` drops in without touching the flow. The UI labels
-the source honestly rather than claiming a model it doesn't have.
+**Tidy suggestions use the on-device model where the device has one.** Two
+implementations sit behind the `Suggesting` protocol:
+
+- `FoundationModelsSuggester` — Apple's `SystemLanguageModel` (§13). A fresh
+  session per entry with a three-field structured output, on device only, no
+  Private Cloud Compute. The whole file is inside `#if canImport(FoundationModels)`
+  and `@available(iOS 26, *)`.
+- `HeuristicSuggester` — keyword matching, everywhere else.
+
+`SuggesterFactory.make()` picks at runtime. The tidy card shows the keyword
+result instantly, then swaps in the model's answer if one arrives and the user
+hasn't already corrected the field. A model failure mid-session is never worse
+than no model: the heuristic result is already in hand. The UI names which
+source it used, and *אני → מודל מקומי* explains why the model is off when it is.
+
+**Consequence for toolchains:** on Xcode 16 the FoundationModels file compiles
+out entirely, so it is never type-checked there. It requires **Xcode 26** to
+build, and an iPhone 15 Pro or newer on iOS 26 with Apple Intelligence enabled
+to actually run.
 
 **Report bands use a neutral grey ramp, not the pastels.** The six tints in §05
 are bound to entry *types*; reusing them for projects would make the same colour
