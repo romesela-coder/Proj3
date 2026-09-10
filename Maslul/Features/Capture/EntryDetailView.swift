@@ -7,16 +7,18 @@ import PhotosUI
 struct EntryDetailView: View {
     @Bindable var entry: Entry
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
     @Query(sort: \Project.createdAt, order: .forward)
     private var projects: [Project]
 
+    @Query(sort: \EntryTag.name, order: .forward)
+    private var availableTags: [EntryTag]
+
     @State private var showProjectPicker = false
     @State private var showDatePicker = false
     @State private var photoItems: [PhotosPickerItem] = []
-    @FocusState private var bodyFocused: Bool
+    @State private var selectedDetent: PresentationDetent = .fraction(0.68)
 
     private var activeProjects: [Project] {
         // A closed project stays on the entries already filed under it.
@@ -25,11 +27,8 @@ struct EntryDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    metadataPanel
                     ZStack(alignment: .leading) {
                         if entry.titleText.isEmpty {
                             Text("Title")
@@ -46,17 +45,28 @@ struct EntryDetailView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .environment(\.layoutDirection, .leftToRight)
-                    .padding(.bottom, 12)
+                    .onTapGesture { selectedDetent = .large }
+
+                    Text(Fmt.stamp(entry.createdAt))
+                        .font(.bodyText(12.5))
+                        .foregroundStyle(Palette.meta)
+                        .padding(.top, 2)
+                        .padding(.bottom, 22)
+
                     bodyCard
-                    dateRow
-                    evidenceRow
+                    actionRow
+                    attachmentStrip
                 }
                 .padding(.horizontal, Metrics.hMargin)
-                .padding(.bottom, 40)
+                .padding(.top, 28)
+                .padding(.bottom, 24)
             }
         }
         .screenBackground()
         .environment(\.layoutDirection, .leftToRight)
+        .presentationDetents([.fraction(0.68), .large], selection: $selectedDetent)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Palette.ground)
         .confirmationDialog("Project", isPresented: $showProjectPicker, titleVisibility: .visible) {
             ForEach(activeProjects) { candidate in
                 Button(candidate.name) { mutate { entry.project = candidate } }
@@ -74,23 +84,6 @@ struct EntryDetailView: View {
             entry.touch()
             try? context.save()
         }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack {
-            CircleButton(symbol: "chevron.forward") { dismiss() }
-            Spacer()
-            Text("ENTRY")
-                .font(.bodyText(16, weight: .bold))
-                .foregroundStyle(Palette.ink)
-            Spacer()
-            Chip(title: "Done", isOn: true) { dismiss() }
-        }
-        .padding(.horizontal, Metrics.hMargin)
-        .padding(.top, 20)
-        .padding(.bottom, 20)
     }
 
     // MARK: - Reading-first layout
@@ -157,19 +150,127 @@ struct EntryDetailView: View {
     }
 
     private var bodyCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionLabel(text: "NOTE")
-            TextEditor(text: $entry.body)
-                .font(.bodyText(21))
-                .foregroundStyle(Palette.ink)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .frame(minHeight: 220)
-                .focused($bodyFocused)
+        VStack(alignment: .leading, spacing: 8) {
+            InlineMentionEditor(
+                text: $entry.body,
+                tags: $entry.tags,
+                placeholder: "Write something…",
+                fontSize: 21,
+                scrolls: false,
+                onFocus: { selectedDetent = .large }
+            )
+                .frame(minHeight: 86, maxHeight: 240)
+            TagMentionSuggestions(text: $entry.body, selectedTags: $entry.tags, tags: availableTags)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.layoutDirection, .leftToRight)
         .padding(.bottom, 22)
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            Button { showDatePicker = true } label: {
+                compactAction(symbol: "calendar", title: Fmt.dayDot(entry.createdAt), isOn: false)
+            }
+            .buttonStyle(.plain)
+
+            PhotosPicker(
+                selection: $photoItems,
+                maxSelectionCount: AttachmentStore.maxPerEntry - entry.attachmentNames.count,
+                matching: .images
+            ) {
+                compactAction(
+                    symbol: "paperclip",
+                    title: entry.attachmentNames.isEmpty ? "Attach" : "\(entry.attachmentNames.count)",
+                    isOn: !entry.attachmentNames.isEmpty
+                )
+            }
+            .disabled(entry.attachmentNames.count >= AttachmentStore.maxPerEntry)
+
+            Button {
+                mutate { entry.sensitivity = entry.isSensitive ? .normal : .sensitive }
+            } label: {
+                compactAction(symbol: entry.isSensitive ? "lock.fill" : "lock.open", title: "Private", isOn: entry.isSensitive)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 18)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Palette.lineSoft).frame(height: 1).offset(y: -10)
+        }
+    }
+
+    private func compactAction(symbol: String, title: String, isOn: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 13, weight: .medium))
+            Text(title).lineLimit(1)
+        }
+        .font(.bodyText(12.5, weight: .semibold))
+        .foregroundStyle(isOn ? Color.white : Palette.ink2)
+        .padding(.horizontal, 11)
+        .frame(minHeight: 34)
+        .background(Capsule().fill(isOn ? Palette.control : Palette.neutralTile))
+    }
+
+    @ViewBuilder
+    private var attachmentStrip: some View {
+        if !entry.attachmentNames.isEmpty {
+            VStack(spacing: 12) {
+                ForEach(entry.attachmentNames, id: \.self) { name in
+                    attachmentCard(name)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
+        }
+    }
+
+    private func attachmentCard(_ name: String) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let image = AttachmentStore.image(named: name) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Palette.neutralTile
+                        .overlay(
+                            Image(systemName: "photo")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundStyle(Palette.meta)
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .allowsHitTesting(false)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Palette.ink.opacity(0.06), lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+
+            Button {
+                mutate {
+                    entry.attachmentNames.removeAll { $0 == name }
+                    AttachmentStore.delete(name)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Palette.ink.opacity(0.78)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.32), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(10)
+        }
     }
 
     private var typeRow: some View {

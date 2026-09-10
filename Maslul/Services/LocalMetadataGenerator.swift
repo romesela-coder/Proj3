@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 #if canImport(FoundationModels)
 import FoundationModels
@@ -7,29 +8,44 @@ import FoundationModels
 /// Generates small pieces of editable metadata on device. Saving never waits
 /// for the model; deterministic fallbacks are returned whenever it is absent.
 enum LocalMetadataGenerator {
+    private static let logger = Logger(subsystem: "com.romesela.maslul", category: "TitleGeneration")
+
     static func title(
         for note: String,
         projectName: String? = nil,
         type: EntryType? = nil
     ) async -> String {
-        let fallback = Entry.makeTitle(from: note)
+        // Speech transcription may prepend bidirectional control characters
+        // (for example U+200F). They are useful for display, but can make the
+        // language detector reject an otherwise supported Hebrew prompt.
+        let modelNote = removingInvisibleDirectionControls(from: note)
+        let fallback = extractiveTitle(from: modelNote)
 
         #if canImport(FoundationModels)
         if #available(iOS 26, *), await FoundationModelsSuggester.isAvailable {
             do {
+                logger.info("Starting local title generation")
                 let generated = try await FoundationMetadataGenerator.title(
-                    for: note,
+                    for: modelNote,
                     projectName: projectName,
                     type: type
                 )
                 if !generated.isEmpty,
                    !isProjectOnlyTitle(generated, projectName: projectName) {
+                    logger.info("Local title generation succeeded")
                     return generated
                 }
-            } catch {}
+                logger.error("Local title generation returned an unusable title")
+            } catch {
+                logger.error("Local title generation failed: \(String(describing: error), privacy: .public)")
+            }
+        } else if #available(iOS 26, *) {
+            let availabilityNote = await FoundationModelsSuggester.availabilityNote
+            logger.error("Local title model unavailable: \(availabilityNote, privacy: .public)")
         }
         #endif
 
+        logger.info("Using deterministic fallback title")
         return fallback
     }
 
@@ -56,6 +72,51 @@ enum LocalMetadataGenerator {
             .filter { CharacterSet.alphanumerics.contains($0) }
             .map(String.init)
             .joined()
+    }
+
+    private static func removingInvisibleDirectionControls(from value: String) -> String {
+        let filtered = value.unicodeScalars.filter { scalar in
+            switch scalar.value {
+            case 0x200E, 0x200F, 0x202A...0x202E, 0x2066...0x2069, 0xFEFF:
+                return false
+            default:
+                return true
+            }
+        }
+        return String(String.UnicodeScalarView(filtered))
+    }
+
+    private static func extractiveTitle(from note: String) -> String {
+        let clean = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstThought = clean
+            .split(whereSeparator: { ".!?\n".contains($0) })
+            .first
+            .map(String.init) ?? clean
+        let edgeCharacters = CharacterSet.punctuationCharacters
+            .union(.symbols)
+            .union(.controlCharacters)
+        let originalWords = firstThought
+            .split(whereSeparator: \.isWhitespace)
+            .map { String($0).trimmingCharacters(in: edgeCharacters) }
+            .filter { !$0.isEmpty }
+
+        let fillerWords: Set<String> = [
+            "אה", "אמ", "אוקיי", "כאילו", "בעצם", "ממ", "מממ", "טוב",
+            "בוא", "בואי", "בואו", "רגע", "סתם", "כזה", "כזאת",
+            "אני", "אנחנו", "זה", "זאת", "הזה", "הזאת",
+            "uh", "um", "okay", "well", "like", "actually", "basically",
+            "i", "we", "this", "that"
+        ]
+
+        var seen: Set<String> = []
+        let meaningful = originalWords.filter { word in
+            let key = word.lowercased()
+            guard !fillerWords.contains(key) else { return false }
+            return seen.insert(key).inserted
+        }
+        let chosen = meaningful.count >= 2 ? meaningful : originalWords
+        let title = chosen.prefix(6).joined(separator: " ")
+        return title.isEmpty ? Entry.makeTitle(from: note) : title
     }
 
     private static func isEmoji(_ value: String) -> Bool {

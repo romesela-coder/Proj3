@@ -24,6 +24,9 @@ struct CaptureView: View {
     @Query(sort: \Goal.createdAt, order: .forward)
     private var goals: [Goal]
 
+    @Query(sort: \EntryTag.name, order: .forward)
+    private var availableTags: [EntryTag]
+
     @State private var text = ""
     @State private var type: EntryType?
     @State private var project: Project?
@@ -33,6 +36,7 @@ struct CaptureView: View {
     @State private var date = Date()
     @State private var isSensitive = false
     @State private var attachmentNames: [String] = []
+    @State private var selectedTags: [EntryTag] = []
 
     @State private var showDatePicker = false
     @State private var addingProject = false
@@ -46,8 +50,6 @@ struct CaptureView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var didSave = false
     @State private var selectedDetent: PresentationDetent = .large
-
-    @FocusState private var isFocused: Bool
 
     private var activeProjects: [Project] {
         projects.filter(\.isSelectable)
@@ -74,8 +76,6 @@ struct CaptureView: View {
         .presentationBackground(Palette.ground)
         .task {
             restoreDraftIfNeeded()
-            try? await Task.sleep(for: .milliseconds(320))
-            isFocused = true
         }
         .onDisappear(perform: persistDraftIfNeeded)
         .task(id: text) { await refreshSuggestions() }
@@ -95,11 +95,14 @@ struct CaptureView: View {
     private var quickComposer: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                TextField(type?.hint ?? "Write something…", text: $text, axis: .vertical)
-                    .font(.bodyText(18))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1...3)
-                    .focused($isFocused)
+                InlineMentionEditor(
+                    text: $text,
+                    tags: $selectedTags,
+                    placeholder: type?.hint ?? "Write something…",
+                    fontSize: 18,
+                    autoFocus: true
+                )
+                .frame(maxWidth: .infinity, minHeight: 42, maxHeight: 72)
 
                 Button {
                     guard canSave else { return }
@@ -114,6 +117,8 @@ struct CaptureView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Save entry")
             }
+
+            TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
 
             HStack(spacing: 8) {
                 if isGeneratingSuggestions {
@@ -171,6 +176,7 @@ struct CaptureView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     editor
+                    TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
                     suggestionNote
                     typeSection
                     projectSection
@@ -221,13 +227,14 @@ struct CaptureView: View {
                     .padding(.top, 16)
                     .allowsHitTesting(false)
             }
-            TextEditor(text: $text)
-                .font(.bodyText(17))
-                .foregroundStyle(Palette.ink)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .focused($isFocused)
-                .padding(12)
+            InlineMentionEditor(
+                text: $text,
+                tags: $selectedTags,
+                placeholder: "",
+                fontSize: 17,
+                scrolls: true
+            )
+            .padding(16)
         }
         .frame(minHeight: 176)
         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Color.white))
@@ -432,6 +439,7 @@ struct CaptureView: View {
         entry.goal = goal
         entry.sensitivity = isSensitive ? .sensitive : .normal
         entry.attachmentNames = attachmentNames
+        entry.tags = selectedTags
         context.insert(entry)
         entry.isGeneratingTitle = true
         try? context.save()
@@ -631,6 +639,7 @@ struct DatePickerSheet: View {
             Spacer()
         }
         .screenBackground()
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.fraction(0.62), .large])
+        .presentationDragIndicator(.visible)
     }
 }

@@ -28,7 +28,9 @@ struct RootView: View {
                 AllocationView(weekStart: Week.start()) { router.sheet = nil }
             }
         }
-        .task { purgeExpiredTrash() }
+        .task {
+            purgeExpiredTrash()
+        }
     }
 
     private var tabs: some View {
@@ -51,6 +53,7 @@ struct RootView: View {
                     MeView()
                         .navigationDestination(for: MeRoute.self) { route in
                             switch route {
+                            case .tags: TagsView()
                             case .projects: ProjectsView()
                             case .timeReport: TimeReportView()
                             case .goals: GoalsView()
@@ -101,24 +104,44 @@ struct DockBar: View {
             if showsCompose {
                 Spacer(minLength: 8)
 
-                Button {
-                    if let composeAction {
-                        composeAction()
-                    } else {
-                        router.newEntry()
+                VStack(spacing: 8) {
+                    Button {
+                        withAnimation(Motion.spring) { router.openProjects() }
+                    } label: {
+                        Circle()
+                            .fill(Palette.ground)
+                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
+                            .overlay(
+                                Image(systemName: "folder.badge.plus")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                            )
+                            .overlay(
+                                Circle().stroke(Palette.line, lineWidth: 1)
+                            )
                     }
-                } label: {
-                    Circle()
-                        .fill(Palette.control)
-                        .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
-                        .overlay(
-                            Image(systemName: "plus")
-                                .font(.system(size: 22, weight: .medium))
-                                .foregroundStyle(Color.white)
-                        )
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Projects")
+
+                    Button {
+                        if let composeAction {
+                            composeAction()
+                        } else {
+                            router.newEntry()
+                        }
+                    } label: {
+                        Circle()
+                            .fill(Palette.control)
+                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundStyle(Color.white)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("New entry")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("New entry")
             } else {
                 Spacer(minLength: 0)
             }

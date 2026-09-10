@@ -21,6 +21,7 @@ enum JournalRoute: Hashable {
 }
 
 enum MeRoute: Hashable {
+    case tags
     case projects
     case timeReport
     case goals
@@ -63,6 +64,17 @@ final class Router {
 
     func startAllocation() {
         sheet = .allocation
+    }
+
+    func openProjects() {
+        tab = .me
+        mePath = [.tags]
+    }
+
+    func closeTagsToHome() {
+        mePath = []
+        journalPath = []
+        tab = .journal
     }
 
     func openJournal(_ preset: JournalPreset) {

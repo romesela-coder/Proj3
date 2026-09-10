@@ -252,6 +252,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "מסלול";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Maslul uses the microphone to turn your speech into an entry.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Maslul uses speech recognition to transcribe your dictation.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -282,6 +284,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "מסלול";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Maslul uses the microphone to turn your speech into an entry.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Maslul uses speech recognition to transcribe your dictation.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
