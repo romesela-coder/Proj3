@@ -1,6 +1,6 @@
 import Foundation
 
-/// What the tidy screen offers for one entry.
+/// Metadata suggested while the user is writing an entry.
 struct Suggestion {
     var type: EntryType?
     var project: Project?
@@ -25,7 +25,7 @@ protocol Suggesting {
 /// suggestion is one tap from being corrected. Keyword matching, not a model,
 /// and the UI says so.
 struct HeuristicSuggester: Suggesting {
-    var sourceLabel: String { "מבוסס מילות מפתח" }
+    var sourceLabel: String { "Keyword matching" }
 
     // Friction first: it is the most specific, and the type most likely to be
     // quietly dropped if the guess goes the flattering way (§16).
@@ -127,9 +127,9 @@ enum SuggesterFactory {
         if #available(iOS 26, *) {
             return FoundationModelsSuggester.availabilityNote
         }
-        return "המודל המקומי דורש iOS 26. המכשיר הזה מריץ גרסה מוקדמת יותר."
+        return "The local model requires iOS 26. This device is running an earlier version."
         #else
-        return "הבילד הזה נבנה עם SDK ישן מ-iOS 26, ולכן המודל המקומי לא נכלל בו."
+        return "This build uses an SDK older than iOS 26, so the local model is not included."
         #endif
     }
 }

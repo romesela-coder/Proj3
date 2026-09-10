@@ -8,8 +8,9 @@ struct JournalView: View {
 
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
 
-    @Query(sort: \Entry.createdAt, order: .reverse)
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var entries: [Entry]
 
     @Query(sort: \Project.createdAt, order: .forward)
@@ -17,7 +18,6 @@ struct JournalView: View {
 
     @State private var query = ""
     @State private var typeFilter: EntryType?
-    @State private var onlyPending = false
     @State private var range: ExportRange = .quarter
     @State private var projectFilter: Project?
     @State private var isSearching = false
@@ -44,18 +44,18 @@ struct JournalView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .task { applyPreset() }
-        .confirmationDialog("פרויקט", isPresented: $showProjectPicker, titleVisibility: .visible) {
-            Button("כל הפרויקטים") { projectFilter = nil }
+        .confirmationDialog("Project", isPresented: $showProjectPicker, titleVisibility: .visible) {
+            Button("All projects") { projectFilter = nil }
             ForEach(projects) { project in
                 Button(project.name) { projectFilter = project }
             }
-            Button("ביטול", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         }
-        .confirmationDialog("טווח", isPresented: $showRangePicker, titleVisibility: .visible) {
+        .confirmationDialog("Range", isPresented: $showRangePicker, titleVisibility: .visible) {
             ForEach(ExportRange.allCases) { candidate in
                 Button(candidate.title) { range = candidate }
             }
-            Button("ביטול", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -70,7 +70,6 @@ struct JournalView: View {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         return entries.filter { entry in
-            if onlyPending, !entry.needsTidy { return false }
             if let typeFilter, entry.type != typeFilter { return false }
             if let projectFilter,
                entry.project?.persistentModelID != projectFilter.persistentModelID { return false }
@@ -95,9 +94,6 @@ struct JournalView: View {
         switch preset {
         case .all:
             break
-        case .pending:
-            onlyPending = true
-            range = .all
         case .search:
             isSearching = true
             range = .all
@@ -111,7 +107,7 @@ struct JournalView: View {
         HStack {
             CircleButton(symbol: "chevron.forward") { dismiss() }
             Spacer()
-            Text(onlyPending ? "ממתינות לסידור" : "יומן")
+            Text("Journal")
                 .font(.bodyText(16, weight: .bold))
                 .foregroundStyle(Palette.ink)
             Spacer()
@@ -136,7 +132,7 @@ struct JournalView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .light))
                 .foregroundStyle(Palette.muted)
-            TextField("חפש ביומן", text: $query)
+            TextField("Search journal", text: $query)
                 .font(.bodyText(15))
                 .focused($searchFocused)
                 .submitLabel(.search)
@@ -159,16 +155,9 @@ struct JournalView: View {
     private var typeChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Chip(title: "הכל", isOn: typeFilter == nil && !onlyPending) {
+                Chip(title: "All", isOn: typeFilter == nil) {
                     withAnimation(Motion.spring) {
                         typeFilter = nil
-                        onlyPending = false
-                    }
-                }
-                Chip(title: "ממתינות", isOn: onlyPending) {
-                    withAnimation(Motion.spring) {
-                        onlyPending.toggle()
-                        if onlyPending { typeFilter = nil }
                     }
                 }
                 ForEach(EntryType.allCases) { candidate in
@@ -179,7 +168,6 @@ struct JournalView: View {
                     ) {
                         withAnimation(Motion.spring) {
                             typeFilter = (typeFilter == candidate) ? nil : candidate
-                            if typeFilter != nil { onlyPending = false }
                         }
                     }
                 }
@@ -192,7 +180,7 @@ struct JournalView: View {
     private var secondaryChips: some View {
         HStack(spacing: 8) {
             Chip(title: range.title, isSquare: true) { showRangePicker = true }
-            Chip(title: projectFilter?.name ?? "כל הפרויקטים", isSquare: true) {
+            Chip(title: projectFilter?.name ?? "All projects", isSquare: true) {
                 showProjectPicker = true
             }
             Spacer()
@@ -204,37 +192,118 @@ struct JournalView: View {
     // MARK: - List
 
     private var list: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                ForEach(months, id: \.key) { month in
-                    SectionLabel(text: "\(Fmt.monthYear(month.key)) · \(month.entries.count) רשומות")
-                        .padding(.top, 14)
-                        .padding(.bottom, 6)
+        List {
+            ForEach(months, id: \.key) { month in
+                SectionLabel(text: "\(Fmt.monthYear(month.key)) · \(month.entries.count) entries")
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
+                    .journalListRow()
 
-                    ForEach(month.entries) { entry in
-                        Button { router.open(entry) } label: {
-                            EntryRowView(entry: entry)
+                ForEach(month.entries) { entry in
+                    Button { router.open(entry) } label: {
+                        EntryRowView(entry: entry)
+                    }
+                    .buttonStyle(.plain)
+                    .journalListRow()
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) { moveToTrash(entry) } label: {
+                            Label("Trash", systemImage: "trash")
                         }
-                        .buttonStyle(.plain)
+                        .tint(.red)
                     }
                 }
             }
-            .padding(.horizontal, Metrics.hMargin)
-            .padding(.bottom, 24)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
+        .contentMargins(.bottom, 24, for: .scrollContent)
     }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
             Spacer()
-            Text(query.isEmpty ? "אין רשומות בטווח הזה" : "אין תוצאות ל\"\(query)\"")
+            Text(query.isEmpty ? "No entries in this range" : "No results for \"\(query)\"")
                 .font(.bodyText(15))
                 .foregroundStyle(Palette.muted)
-            Text(query.isEmpty ? "נסה טווח רחב יותר" : "אין כאן ניחוש — רק מה שכתבת")
+            Text(query.isEmpty ? "Try a wider range" : "No guessing — only what you wrote")
                 .font(.bodyText(12.5))
                 .foregroundStyle(Palette.meta)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func moveToTrash(_ entry: Entry) {
+        entry.moveToTrash()
+        try? context.save()
+    }
+}
+
+struct TrashView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @Query(filter: #Predicate<Entry> { $0.trashedAt != nil }, sort: \Entry.trashedAt, order: .reverse)
+    private var entries: [Entry]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                CircleButton(symbol: "chevron.forward") { dismiss() }
+                Spacer()
+                Text("Trash")
+                    .font(.bodyText(16, weight: .bold))
+                Spacer()
+                Color.clear.frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
+            }
+            .padding(.horizontal, Metrics.hMargin)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+
+            Text("Entries are permanently deleted 48 hours after being moved here.")
+                .font(.bodyText(13))
+                .foregroundStyle(Palette.meta)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Metrics.hMargin)
+                .padding(.bottom, 14)
+
+            if entries.isEmpty {
+                Spacer()
+                Text("Trash is empty")
+                    .font(.bodyText(15))
+                    .foregroundStyle(Palette.meta)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(entries) { entry in
+                            HStack(spacing: 10) {
+                                EntryRowView(entry: entry)
+                                Button { restore(entry) } label: {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(Palette.ink)
+                                        .frame(width: 40, height: 40)
+                                        .background(Circle().fill(Palette.neutralTile))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Restore entry")
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Metrics.hMargin)
+                    .padding(.bottom, 30)
+                }
+            }
+        }
+        .screenBackground()
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func restore(_ entry: Entry) {
+        entry.restoreFromTrash()
+        try? context.save()
     }
 }

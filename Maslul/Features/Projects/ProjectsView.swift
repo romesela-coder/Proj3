@@ -10,7 +10,7 @@ struct ProjectsView: View {
     @Query(sort: \Project.createdAt, order: .forward)
     private var projects: [Project]
 
-    @Query private var entries: [Entry]
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }) private var entries: [Entry]
 
     @State private var editing: Project?
     @State private var showLimitAlert = false
@@ -25,11 +25,11 @@ struct ProjectsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    SectionLabel(text: "פעילים · \(active.count) מתוך \(Project.activeLimit)")
+                    SectionLabel(text: "ACTIVE · \(active.count) of \(Project.activeLimit)")
                         .padding(.bottom, 4)
 
                     if active.isEmpty {
-                        Text("אין עדיין פרויקטים. הראשון דורש שם בלבד.")
+                        Text("No projects yet. The first one only needs a name.")
                             .font(.bodyText(14))
                             .foregroundStyle(Palette.meta)
                             .padding(.vertical, 16)
@@ -40,14 +40,14 @@ struct ProjectsView: View {
                     }
 
                     if !paused.isEmpty {
-                        SectionLabel(text: "מושהים").padding(.top, 20)
+                        SectionLabel(text: "PAUSED").padding(.top, 20)
                         ForEach(paused) { project in
                             row(project).opacity(0.6)
                         }
                     }
 
                     if !closed.isEmpty {
-                        SectionLabel(text: "סגורים").padding(.top, 20)
+                        SectionLabel(text: "DONE").padding(.top, 20)
                         ForEach(closed) { project in
                             row(project).opacity(0.45)
                         }
@@ -81,11 +81,11 @@ struct ProjectsView: View {
         HStack {
             CircleButton(symbol: "chevron.forward") { dismiss() }
             Spacer()
-            Text("פרויקטים")
+            Text("Projects")
                 .font(.bodyText(16, weight: .bold))
                 .foregroundStyle(Palette.ink)
             Spacer()
-            Chip(title: "חדש", isOn: true) { createProject() }
+            Chip(title: "New", isOn: true) { createProject() }
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
@@ -99,9 +99,14 @@ struct ProjectsView: View {
                     .fill(Palette.neutralTile)
                     .frame(width: 34, height: 34)
                     .overlay(
-                        Text(project.mark)
-                            .font(.bodyText(14, weight: .bold))
-                            .foregroundStyle(Palette.ink2)
+                        Group {
+                            if project.isGeneratingEmoji {
+                                AIActivityGlyph(size: 16)
+                            } else {
+                                Text(project.emoji)
+                                    .font(.system(size: 18))
+                            }
+                        }
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -170,29 +175,48 @@ struct ProjectEditView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Chip(title: "ביטול") { cancel() }
+                Chip(title: "Cancel") { cancel() }
                 Spacer()
-                Text("פרויקט")
+                Text("PROJECT")
                     .font(.utility(10.5))
                     .tracking(1.4)
                     .foregroundStyle(Palette.meta)
                 Spacer()
-                Chip(title: "שמור", isOn: !trimmedName.isEmpty) { save() }
+                Chip(title: "Save", isOn: !trimmedName.isEmpty) { save() }
                     .opacity(trimmedName.isEmpty ? 0.45 : 1)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "שם")
-                TextField("שם הפרויקט", text: $project.name)
-                    .font(.bodyText(17))
+                SectionLabel(text: "NAME & EMOJI")
+                HStack(spacing: 10) {
+                    TextField("📁", text: $project.emoji)
+                        .font(.system(size: 24))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 54, height: 50)
+                        .background(Capsule().fill(Color.white))
+                        .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
+
+                    ZStack(alignment: .leading) {
+                        if project.name.isEmpty {
+                            Text("Project name")
+                                .font(.bodyText(17))
+                                .foregroundStyle(Palette.line)
+                                .allowsHitTesting(false)
+                        }
+                        TextField("", text: $project.name)
+                            .font(.bodyText(17))
+                            .multilineTextAlignment(.leading)
+                            .textFieldStyle(.plain)
+                    }
                     .padding(.horizontal, 16)
-                    .frame(minHeight: 50)
+                    .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
                     .background(Capsule().fill(Color.white))
                     .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "מקור המשימה")
+                SectionLabel(text: "DEFAULT ORIGIN")
                 Text("ברירת מחדל שרשומות בפרויקט יורשות. ניתן לדריסה ברשומה בודדת.")
                     .font(.bodyText(12.5))
                     .foregroundStyle(Palette.meta)
@@ -209,7 +233,7 @@ struct ProjectEditView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "סטטוס")
+                SectionLabel(text: "STATUS")
                 HStack(spacing: 8) {
                     ForEach(ProjectStatus.allCases) { candidate in
                         Chip(title: candidate.title, isOn: project.status == candidate) {
@@ -224,6 +248,7 @@ struct ProjectEditView: View {
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 20)
         .screenBackground()
+        .environment(\.layoutDirection, .leftToRight)
         .presentationDetents([.medium, .large])
     }
 
@@ -234,10 +259,30 @@ struct ProjectEditView: View {
     private func save() {
         guard !trimmedName.isEmpty else { return }
         project.name = trimmedName
+        let enteredEmoji = project.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.emoji = enteredEmoji.first.map(String.init) ?? "📁"
         if project.mark.isEmpty || project.mark == "•" {
             project.mark = Project.defaultMark(for: trimmedName)
         }
         try? context.save()
+
+        let initialEmoji = project.emoji
+        if initialEmoji == "📁" {
+            project.isGeneratingEmoji = true
+            Task { @MainActor in
+                let generated = await LocalMetadataGenerator.emoji(
+                    for: project.name,
+                    fallback: Project.suggestedEmoji(for: project.name)
+                )
+                guard project.emoji == initialEmoji else {
+                    project.isGeneratingEmoji = false
+                    return
+                }
+                project.emoji = generated
+                project.isGeneratingEmoji = false
+                try? context.save()
+            }
+        }
         dismiss()
     }
 

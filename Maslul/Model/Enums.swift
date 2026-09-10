@@ -21,12 +21,12 @@ enum EntryType: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .win: return "הישג"
-        case .learning: return "למידה"
-        case .friction: return "חיכוך"
-        case .decision: return "החלטה"
-        case .goal: return "מטרה"
-        case .people: return "אנשים"
+        case .win: return "Win"
+        case .learning: return "Learning"
+        case .friction: return "Friction"
+        case .decision: return "Decision"
+        case .goal: return "Goal"
+        case .people: return "People"
         }
     }
 
@@ -58,12 +58,12 @@ enum EntryType: String, CaseIterable, Identifiable, Codable {
 
     var hint: String {
         switch self {
-        case .win: return "משהו שנעשה ויש לו תוצאה"
-        case .learning: return "מיומנות, טכנולוגיה או תובנה"
-        case .friction: return "ריג׳קט, פידבק צורב, משהו שנתקע"
-        case .decision: return "מה הוחלט, מה היו החלופות"
-        case .goal: return "מטרה או עדכון התקדמות"
-        case .people: return "למי עזרת, מי עזר לך"
+        case .win: return "Something you did with a result"
+        case .learning: return "A skill, technology, or insight"
+        case .friction: return "A setback, tough feedback, or blocker"
+        case .decision: return "What was decided and why"
+        case .goal: return "A goal or progress update"
+        case .people: return "Someone you helped or who helped you"
         }
     }
 }
@@ -82,19 +82,19 @@ enum TaskOrigin: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .assigned: return "הוגדר לי"
-        case .selfInitiated: return "יזמתי"
-        case .interrupt: return "הפרעה או תקלה"
-        case .external: return "בקשה מצוות אחר"
+        case .assigned: return "Assigned to me"
+        case .selfInitiated: return "Self-initiated"
+        case .interrupt: return "Interrupt or incident"
+        case .external: return "Request from another team"
         }
     }
 
     var shortTitle: String {
         switch self {
-        case .assigned: return "הוגדר לי"
-        case .selfInitiated: return "יזמתי"
-        case .interrupt: return "הפרעה"
-        case .external: return "חיצוני"
+        case .assigned: return "Assigned"
+        case .selfInitiated: return "Self-led"
+        case .interrupt: return "Interrupt"
+        case .external: return "External"
         }
     }
 }
@@ -121,8 +121,8 @@ enum Sensitivity: String, CaseIterable, Codable {
 
     var title: String {
         switch self {
-        case .normal: return "רגילה"
-        case .sensitive: return "רגישה"
+        case .normal: return "Normal"
+        case .sensitive: return "Sensitive"
         }
     }
 }
@@ -138,9 +138,9 @@ enum ProjectStatus: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .active: return "פעיל"
-        case .paused: return "מושהה"
-        case .done: return "סגור"
+        case .active: return "Active"
+        case .paused: return "Paused"
+        case .done: return "Done"
         }
     }
 }

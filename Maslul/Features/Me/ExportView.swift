@@ -11,7 +11,7 @@ private struct ShareItem: Identifiable {
 struct ExportView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @Query(sort: \Entry.createdAt, order: .reverse)
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var entries: [Entry]
 
     @State private var range: ExportRange = .quarter

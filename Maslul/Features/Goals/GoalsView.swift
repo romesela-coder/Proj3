@@ -11,7 +11,7 @@ struct GoalsView: View {
     @Environment(\.modelContext) private var context
 
     @Query(sort: \Goal.createdAt, order: .forward) private var goals: [Goal]
-    @Query private var entries: [Entry]
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }) private var entries: [Entry]
 
     @State private var quarter: Quarter = .current()
     @State private var showQuarterPicker = false
@@ -100,10 +100,17 @@ struct GoalsView: View {
             : Double(linked.count) / Double(entriesInQuarter.count) * 100
 
         return VStack(alignment: .leading, spacing: 8) {
-            Text(goal.title)
-                .font(.bodyText(16, weight: .bold))
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 7) {
+                if goal.isGeneratingEmoji {
+                    AIActivityIndicator(messages: ["Matching", "Choosing emoji"], compact: true)
+                } else {
+                    Text(goal.emoji)
+                    Text(goal.title)
+                        .font(.bodyText(16, weight: .bold))
+                        .foregroundStyle(Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -286,12 +293,25 @@ struct GoalEditView: View {
     private func save() {
         guard !trimmedTitle.isEmpty else { return }
         let trimmedMetric = metric.trimmingCharacters(in: .whitespacesAndNewlines)
-        context.insert(Goal(
+        let goal = Goal(
             title: trimmedTitle,
             metric: trimmedMetric.isEmpty ? nil : trimmedMetric,
             quarter: quarter
-        ))
+        )
+        goal.isGeneratingEmoji = true
+        context.insert(goal)
         try? context.save()
+        let initialEmoji = goal.emoji
+        Task { @MainActor in
+            let generated = await LocalMetadataGenerator.emoji(for: goal.title, fallback: initialEmoji)
+            guard goal.emoji == initialEmoji else {
+                goal.isGeneratingEmoji = false
+                return
+            }
+            goal.emoji = generated
+            goal.isGeneratingEmoji = false
+            try? context.save()
+        }
         dismiss()
     }
 }

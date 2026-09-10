@@ -98,7 +98,7 @@ extension View {
 // MARK: - Hebrew formatting
 
 enum Fmt {
-    static let locale = Locale(identifier: "he_IL")
+    static let locale = Locale(identifier: "en_US")
 
     private static func formatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
@@ -140,15 +140,15 @@ enum Fmt {
     /// "היום · 16:24" / "אתמול · 09:10" / "22 ביולי · 14:02"
     static func stamp(_ date: Date) -> String {
         let cal = Calendar.current
-        if cal.isDateInToday(date) { return "היום · \(time(date))" }
-        if cal.isDateInYesterday(date) { return "אתמול · \(time(date))" }
+        if cal.isDateInToday(date) { return "Today · \(time(date))" }
+        if cal.isDateInYesterday(date) { return "Yesterday · \(time(date))" }
         let f = DateFormatter()
         f.locale = locale
         f.setLocalizedDateFormatFromTemplate("dMMMM")
         return "\(f.string(from: date)) · \(time(date))"
     }
 
-    static let weekdayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
+    static let weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
     /// `weekday` uses Foundation's 1 = Sunday convention.
     static func weekday(_ weekday: Int) -> String {

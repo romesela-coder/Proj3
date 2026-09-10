@@ -20,7 +20,7 @@ import FoundationModels
 ///    honesty, and without honesty the journal is worth nothing in a year.
 @available(iOS 26, *)
 struct FoundationModelsSuggester: Suggesting {
-    var sourceLabel: String { "מודל מקומי על המכשיר" }
+    var sourceLabel: String { "On-device model" }
 
     /// Entries are short by design; this only guards against a pathological
     /// paste. The point is to stay far inside the window, not to fill it.
@@ -36,20 +36,20 @@ struct FoundationModelsSuggester: Suggesting {
     static var availabilityNote: String {
         switch SystemLanguageModel.default.availability {
         case .available:
-            return "המודל המקומי פעיל. ההצעות בסידור השבועי מגיעות ממנו, והכל רץ על המכשיר."
+            return "The local model is active. Suggestions appear while you write, and everything runs on this device."
         case .unavailable(let reason):
             switch reason {
             case .deviceNotEligible:
-                return "המכשיר הזה לא תומך ב-Apple Intelligence. ההצעות מבוססות מילות מפתח."
+                return "This device does not support Apple Intelligence. Suggestions use keyword matching."
             case .appleIntelligenceNotEnabled:
-                return "Apple Intelligence כבוי. אפשר להפעיל אותו בהגדרות המכשיר."
+                return "Apple Intelligence is off. You can enable it in Settings."
             case .modelNotReady:
-                return "המודל עדיין יורד או לא מוכן. ההצעות יחזרו אליו לבד."
+                return "The model is still downloading or not ready. Suggestions will use it when available."
             @unknown default:
-                return "המודל המקומי לא זמין כרגע. ההצעות מבוססות מילות מפתח."
+                return "The local model is unavailable. Suggestions use keyword matching."
             }
         @unknown default:
-            return "המודל המקומי לא זמין כרגע. ההצעות מבוססות מילות מפתח."
+            return "The local model is unavailable. Suggestions use keyword matching."
         }
     }
 

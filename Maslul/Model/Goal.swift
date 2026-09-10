@@ -57,6 +57,7 @@ struct Quarter: Hashable, Comparable, Identifiable {
 @Model
 final class Goal {
     var title: String = ""
+    var emoji: String = "🎯"
 
     /// "3 מסמכי עיצוב שאני מוביל" — free text, deliberately not a number.
     var metric: String?
@@ -67,6 +68,9 @@ final class Goal {
     /// Set when the quarter is closed. Closed goals stay in history forever.
     var closedAt: Date?
 
+    /// Ephemeral UI state while the local model chooses the first emoji.
+    @Transient var isGeneratingEmoji = false
+
     /// One line the user writes at closing: why it happened, or why it didn't.
     var closingNote: String?
 
@@ -75,6 +79,7 @@ final class Goal {
 
     init(title: String, metric: String? = nil, quarter: Quarter = .current(), createdAt: Date = .now) {
         self.title = title
+        self.emoji = "🎯"
         self.metric = metric
         self.quarterKey = quarter.key
         self.createdAt = createdAt

@@ -30,9 +30,8 @@ struct MaslulApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                // The whole product is written in Hebrew, so the layout is RTL
-                // regardless of the simulator's own language setting.
-                .environment(\.layoutDirection, .rightToLeft)
+                .environment(\.layoutDirection, .leftToRight)
+                .environment(\.locale, Locale(identifier: "en_US"))
                 .tint(Palette.ink)
                 .preferredColorScheme(.light)
         }

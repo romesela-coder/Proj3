@@ -11,7 +11,8 @@ struct MeView: View {
     @AppStorage(SettingsKey.reminderMinute) private var reminderMinute = Defaults.reminderMinute
     @AppStorage(SettingsKey.sampleDataLoaded) private var sampleDataLoaded = false
 
-    @Query(sort: \Entry.createdAt, order: .reverse) private var entries: [Entry]
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse) private var entries: [Entry]
+    @Query(filter: #Predicate<Entry> { $0.trashedAt != nil }) private var trashedEntries: [Entry]
     @Query private var projects: [Project]
     @Query private var goals: [Goal]
     @Query(sort: \WeeklyAllocation.weekStart, order: .reverse)
@@ -32,23 +33,12 @@ struct MeView: View {
 
                 stats
 
-                SectionLabel(text: "הטקס השבועי").padding(.top, 20).padding(.bottom, 2)
+                SectionLabel(text: "WEEKLY").padding(.top, 20).padding(.bottom, 2)
 
-                Button { router.startRitual() } label: {
-                    SettingRow(
-                        symbol: "checklist",
-                        title: "סידור שבועי",
-                        subtitle: pendingCount == 0
-                            ? "אין רשומות ממתינות"
-                            : "\(pendingCount) רשומות ממתינות"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button { router.startRitual(atAllocation: true) } label: {
+                Button { router.startAllocation() } label: {
                     SettingRow(
                         symbol: "slider.horizontal.3",
-                        title: "הקצאת זמן שבועית",
+                        title: "Weekly allocation",
                         subtitle: allocationSubtitle
                     )
                 }
@@ -61,16 +51,6 @@ struct MeView: View {
                         symbol: "square.and.arrow.up",
                         title: "ייצוא נתונים",
                         subtitle: "Markdown · JSON"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button { router.mePath.append(.roadmap) } label: {
-                    SettingRow(
-                        symbol: "doc.text.magnifyingglass",
-                        title: "חבילת ריוויו",
-                        subtitle: "בגרסה 0.2",
-                        isEnabled: false
                     )
                 }
                 .buttonStyle(.plain)
@@ -145,6 +125,17 @@ struct MeView: View {
                 }
                 .buttonStyle(.plain)
 
+                Button { router.mePath.append(.trash) } label: {
+                    SettingRow(
+                        symbol: "trash",
+                        title: "Trash",
+                        subtitle: trashedEntries.isEmpty
+                            ? "Empty"
+                            : "\(trashedEntries.count) · deleted automatically after 48 hours"
+                    )
+                }
+                .buttonStyle(.plain)
+
                 SettingRow(
                     symbol: "sparkles",
                     title: "מודל מקומי",
@@ -179,7 +170,7 @@ struct MeView: View {
                     .tint(Palette.ink)
                 }
 
-                Text("מחיקת נתוני הדוגמה מוחקת את כל הרשומות והפרויקטים. האפליקציה עצמה לא מוחקת רשומות לעולם — זה כלי בדיקה בלבד.")
+                Text("Sample data controls are for testing only. Deleted entries remain in Trash for 48 hours.")
                     .font(.bodyText(12))
                     .foregroundStyle(Palette.meta)
                     .padding(.top, 10)
@@ -252,8 +243,6 @@ struct MeView: View {
         let friction = typed.filter { $0.type == .friction }.count
         return "\(Int((Double(friction) / Double(typed.count) * 100).rounded()))%"
     }
-
-    private var pendingCount: Int { entries.filter(\.needsTidy).count }
 
     private var allocationSubtitle: String {
         guard let latest = allocations.first else { return "עוד לא הוצהר שבוע" }

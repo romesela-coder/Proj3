@@ -5,15 +5,13 @@ enum RootTab: String, Hashable {
     case journal
     case me
 
-    var title: String { self == .journal ? "יומן" : "אני" }
+    var title: String { self == .journal ? "Journal" : "Me" }
 }
 
 /// Where the journal list should open from.
 enum JournalPreset: Hashable {
     /// Everything, no filter.
     case all
-    /// Only entries still waiting to be classified.
-    case pending
     /// Opens with the search field focused.
     case search
 }
@@ -30,20 +28,20 @@ enum MeRoute: Hashable {
     case privacy
     case reminder
     case entryPoints
-    case roadmap
+    case trash
 }
 
 enum SheetRoute: Identifiable {
-    case capture(EntryType?)
+    case capture(EntryType?, Date?)
     case entry(Entry)
-    /// The weekly ritual: tidy straight into the allocation.
-    case ritual(atAllocation: Bool)
+    case allocation
 
     var id: String {
         switch self {
-        case .capture(let type): return "capture-\(type?.rawValue ?? "free")"
+        case .capture(let type, let date):
+            return "capture-\(type?.rawValue ?? "free")-\(date?.timeIntervalSinceReferenceDate ?? 0)"
         case .entry(let entry): return "entry-\(entry.persistentModelID.hashValue)"
-        case .ritual(let atAllocation): return "ritual-\(atAllocation)"
+        case .allocation: return "allocation"
         }
     }
 }
@@ -55,16 +53,16 @@ final class Router {
     var journalPath: [JournalRoute] = []
     var mePath: [MeRoute] = []
 
-    func newEntry(type: EntryType? = nil) {
-        sheet = .capture(type)
+    func newEntry(type: EntryType? = nil, date: Date? = nil) {
+        sheet = .capture(type, date)
     }
 
     func open(_ entry: Entry) {
         sheet = .entry(entry)
     }
 
-    func startRitual(atAllocation: Bool = false) {
-        sheet = .ritual(atAllocation: atAllocation)
+    func startAllocation() {
+        sheet = .allocation
     }
 
     func openJournal(_ preset: JournalPreset) {

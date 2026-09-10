@@ -12,27 +12,35 @@ struct EntryRowView: View {
                 .padding(.top, 2)
 
             Circle()
-                .fill(entry.type?.tint ?? Palette.neutralTile)
-                .overlay(
-                    Circle().stroke(
-                        entry.type == nil ? Palette.accent : Color.clear,
-                        lineWidth: 1.5
-                    )
-                )
+                .fill(entry.type?.tint ?? Palette.line)
                 .frame(width: 9, height: 9)
                 .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.type?.title ?? "ממתינה לסידור")
-                    .font(.utility(10.5))
-                    .tracking(1.2)
-                    .foregroundStyle(entry.type == nil ? Palette.accent : Palette.meta)
+                if let type = entry.type {
+                    Text(type.title)
+                        .font(.utility(10.5))
+                        .tracking(1.2)
+                        .foregroundStyle(Palette.meta)
+                }
 
-                Text(entry.body)
-                    .font(.bodyText(14.5))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                if entry.isGeneratingTitle {
+                    AIActivityIndicator(messages: ["Naming", "Summarizing"], compact: true)
+                } else {
+                    Text(entry.title)
+                        .font(.bodyText(14.5))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+
+                if entry.title != entry.body {
+                    Text(entry.body)
+                        .font(.bodyText(12.5))
+                        .foregroundStyle(Palette.meta)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                }
 
                 if let project = entry.project {
                     Text(project.name)
@@ -58,9 +66,19 @@ struct EntryRowView: View {
         }
         .padding(.vertical, 15)
         .frame(minHeight: Metrics.rowMinHeight)
+        .fixedSize(horizontal: false, vertical: true)
         .overlay(alignment: .top) {
             Rectangle().fill(Palette.lineSoft).frame(height: 1)
         }
         .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Keeps native List behavior while preserving Maslul's edge-to-edge rows.
+    func journalListRow() -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Palette.ground)
     }
 }

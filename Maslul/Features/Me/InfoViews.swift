@@ -214,7 +214,7 @@ struct EntryPointsView: View {
         ("W1", "כתיבה מהירה · Home small", "כפתור אחד. נגיעה פותחת כתיבה עם המקלדת פתוחה."),
         ("W2", "ארבעה סוגים · Home medium", "הישג · למידה · חיכוך · מטרה, כל אחד פותח כתיבה עם הסוג נבחר."),
         ("W3", "טאלי פרויקטים · medium / large", "נגיעה מסמנת \"עבדתי על זה עכשיו\" בלי לפתוח את האפליקציה. גרסה 0.2."),
-        ("W4", "מסך נעילה · accessory", "מלבני: מונה ממתינות. עגול: משגר כתיבה."),
+        ("W4", "Lock Screen · accessory", "Rectangular: recent entries. Circular: start writing."),
         ("W5", "מרכז הבקרה · ControlWidget", "פקד \"רשומה חדשה\", ניתן להצמדה לכפתור הפעולה."),
         ("W6", "כפתור הפעולה · App Intents", "שלושה Intents בשמות עבריים.")
     ]
@@ -284,7 +284,7 @@ struct RoadmapView: View {
     @Environment(\.dismiss) private var dismiss
 
     private let items: [(String, String, String)] = [
-        ("0.2", "חבילת ריוויו", "תקצירים חודשיים, הישגים מובילים, ציר למידה."),
+        ("0.2", "Monthly summaries", "Highlights, learning themes, and project patterns."),
         ("0.2", "הכתבה קולית מקומית", "תמלול על המכשיר בלבד, בלי שליחה לשרת."),
         ("0.2", "ווידג׳ט טאלי פרויקטים", "נגיעה מסמנת מעבר הקשר, בלי לפתוח את האפליקציה."),
         ("1.0", "שורות קורות חיים", "פעולה → תוצאה → מדד, כטיוטה לצד הרשומה המקורית."),
@@ -300,7 +300,7 @@ struct RoadmapView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     CardBox {
-                        Text("הבילד הזה מכסה את היקף 0.1 ואת הליבה של 0.2: תפיסה, סידור שבועי, הקצאת זמן, דוח, מטרות מול מציאות וייצוא. מה שנשאר כאן דורש מודל מקומי או טארגט נוסף.")
+                        Text("This build covers capture, on-the-spot organization, weekly allocation, reports, goals versus reality, and export.")
                             .font(.bodyText(13.5))
                             .foregroundStyle(Palette.ink2)
                             .fixedSize(horizontal: false, vertical: true)

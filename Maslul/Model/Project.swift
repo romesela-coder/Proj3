@@ -6,6 +6,7 @@ import SwiftData
 @Model
 final class Project {
     var name: String = ""
+    var emoji: String = "📁"
     var statusRaw: String = ProjectStatus.active.rawValue
 
     /// Default origin inherited by entries filed under this project.
@@ -18,6 +19,9 @@ final class Project {
     var endedAt: Date?
     var createdAt: Date = Date()
 
+    /// Ephemeral UI state while the local model chooses the first emoji.
+    @Transient var isGeneratingEmoji = false
+
     @Relationship(deleteRule: .nullify, inverse: \Entry.project)
     var entries: [Entry] = []
 
@@ -29,6 +33,7 @@ final class Project {
         createdAt: Date = .now
     ) {
         self.name = name
+        self.emoji = Project.suggestedEmoji(for: name)
         self.originRaw = origin.rawValue
         self.statusRaw = status.rawValue
         self.startedAt = startedAt
@@ -44,6 +49,16 @@ final class Project {
     static func defaultMark(for name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "•" : String(trimmed.prefix(1))
+    }
+
+    static func suggestedEmoji(for name: String) -> String {
+        let value = name.lowercased()
+        if value.contains("payment") || value.contains("billing") { return "💳" }
+        if value.contains("design") { return "🎨" }
+        if value.contains("data") { return "📊" }
+        if value.contains("team") || value.contains("people") { return "👥" }
+        if value.contains("infra") || value.contains("platform") { return "⚙️" }
+        return "📁"
     }
 }
 

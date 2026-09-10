@@ -3,6 +3,7 @@ import SwiftData
 
 struct RootView: View {
     @AppStorage(SettingsKey.onboarded) private var onboarded = false
+    @Environment(\.modelContext) private var context
     @State private var router = Router()
 
     var body: some View {
@@ -19,14 +20,15 @@ struct RootView: View {
         .background(Palette.ground)
         .sheet(item: $router.sheet) { route in
             switch route {
-            case .capture(let type):
-                CaptureView(presetType: type)
+            case .capture(let type, let date):
+                CaptureView(presetType: type, presetDate: date)
             case .entry(let entry):
                 EntryDetailView(entry: entry)
-            case .ritual(let atAllocation):
-                RitualView(startAtAllocation: atAllocation)
+            case .allocation:
+                AllocationView(weekStart: Week.start()) { router.sheet = nil }
             }
         }
+        .task { purgeExpiredTrash() }
     }
 
     private var tabs: some View {
@@ -56,12 +58,24 @@ struct RootView: View {
                             case .privacy: PrivacyView()
                             case .reminder: ReminderView()
                             case .entryPoints: EntryPointsView()
-                            case .roadmap: RoadmapView()
+                            case .trash: TrashView()
                             }
                         }
                 }
             }
         }
+    }
+
+    private func purgeExpiredTrash() {
+        let cutoff = Date.now.addingTimeInterval(-Entry.trashLifetime)
+        let allEntries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
+        let expired = allEntries.filter { entry in
+            guard let trashedAt = entry.trashedAt else { return false }
+            return trashedAt <= cutoff
+        }
+        guard !expired.isEmpty else { return }
+        expired.forEach(context.delete)
+        try? context.save()
     }
 }
 
@@ -72,6 +86,8 @@ struct RootView: View {
 
 struct DockBar: View {
     @Environment(Router.self) private var router
+    var showsCompose = true
+    var composeAction: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -82,22 +98,30 @@ struct DockBar: View {
             .padding(4)
             .background(Capsule().fill(Palette.control))
 
-            Spacer(minLength: 8)
+            if showsCompose {
+                Spacer(minLength: 8)
 
-            Button {
-                router.newEntry()
-            } label: {
-                Circle()
-                    .fill(Palette.control)
-                    .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
-                    .overlay(
-                        Image(systemName: "plus")
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundStyle(Color.white)
-                    )
+                Button {
+                    if let composeAction {
+                        composeAction()
+                    } else {
+                        router.newEntry()
+                    }
+                } label: {
+                    Circle()
+                        .fill(Palette.control)
+                        .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
+                        .overlay(
+                            Image(systemName: "plus")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(Color.white)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New entry")
+            } else {
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("רשומה חדשה")
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 14)
@@ -130,8 +154,16 @@ struct DockBar: View {
 
 /// Common chrome for the three root screens.
 extension View {
-    func withDock() -> some View {
-        self.safeAreaInset(edge: .bottom, spacing: 0) { DockBar() }
+    func withDock(
+        showsCompose: Bool = true,
+        isVisible: Bool = true,
+        composeAction: (() -> Void)? = nil
+    ) -> some View {
+        self.safeAreaInset(edge: .bottom, spacing: 0) {
+            if isVisible {
+                DockBar(showsCompose: showsCompose, composeAction: composeAction)
+            }
+        }
     }
 
     func screenBackground() -> some View {

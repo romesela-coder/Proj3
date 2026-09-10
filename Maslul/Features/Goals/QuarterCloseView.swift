@@ -30,93 +30,90 @@ struct QuarterCloseView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    if closing.isEmpty {
-                        Text("אין מטרות פתוחות ברבעון הזה. אפשר פשוט להגדיר את מטרות \(next.shortTitle).")
-                            .font(.bodyText(14))
-                            .foregroundStyle(Palette.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            SectionLabel(text: "סיכום \(quarter.shortTitle)")
-                            Text("שורה אחת לכל מטרה — למה זה קרה או למה לא. אופציונלי.")
-                                .font(.bodyText(12.5))
-                                .foregroundStyle(Palette.meta)
-                        }
-
-                        ForEach(closing) { goal in
-                            closingRow(goal)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        SectionLabel(text: "מטרות \(next.shortTitle)")
-                        Text("שתיים עד ארבע. מדד אפשר להוסיף אחר כך.")
-                            .font(.bodyText(12.5))
-                            .foregroundStyle(Palette.meta)
-                    }
-
-                    ForEach(Array(newTitles.enumerated()), id: \.offset) { index, title in
-                        HStack(spacing: 10) {
-                            Text(title)
-                                .font(.bodyText(15))
-                                .foregroundStyle(Palette.ink)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Button {
-                                withAnimation(Motion.spring) { newTitles.remove(at: index) }
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 13, weight: .light))
-                                    .foregroundStyle(Palette.meta)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.vertical, 12)
-                        .overlay(alignment: .top) {
-                            Rectangle().fill(Palette.lineSoft).frame(height: 1)
-                        }
-                    }
-
-                    if plannedCount < Goal.activeLimit {
-                        HStack(spacing: 8) {
-                            TextField("מטרה חדשה", text: $draft)
-                                .font(.bodyText(16))
-                                .submitLabel(.done)
-                                .onSubmit(addDraft)
-                                .padding(.horizontal, 16)
-                                .frame(minHeight: 50)
-                                .background(Capsule().fill(Color.white))
-                                .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
-
-                            Button(action: addDraft) {
-                                Circle()
-                                    .fill(Palette.control)
-                                    .frame(width: 50, height: 50)
-                                    .overlay(
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 19, weight: .medium))
-                                            .foregroundStyle(Color.white)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .opacity(canAdd ? 1 : 0.35)
-                            .disabled(!canAdd)
-                        }
-                    } else {
-                        Text("ארבע מטרות זה המקסימום. חמישית היא כבר רשימת משימות.")
-                            .font(.bodyText(12.5))
-                            .foregroundStyle(Palette.meta)
-                    }
-
-                    PrimaryButton(title: "סגור רבעון") { commit() }
-                        .padding(.top, 8)
-                        .padding(.bottom, 30)
-                }
-                .padding(.horizontal, Metrics.hMargin)
+            ScrollView(.vertical, showsIndicators: true) {
+                scrollContent
             }
         }
         .screenBackground()
+    }
+
+    private var scrollContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            closingSection
+            nextGoalsSection
+            PrimaryButton(title: "סגור רבעון") { commit() }
+                .padding(.top, 8)
+                .padding(.bottom, 30)
+        }
+        .padding(.horizontal, Metrics.hMargin)
+    }
+
+    @ViewBuilder
+    private var closingSection: some View {
+        if closing.isEmpty {
+            Text("אין מטרות פתוחות ברבעון הזה. אפשר פשוט להגדיר את מטרות \(next.shortTitle).")
+                .font(.bodyText(14))
+                .foregroundStyle(Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(text: "סיכום \(quarter.shortTitle)")
+                Text("שורה אחת לכל מטרה — למה זה קרה או למה לא. אופציונלי.")
+                    .font(.bodyText(12.5))
+                    .foregroundStyle(Palette.meta)
+            }
+            ForEach(closing) { goal in closingRow(goal) }
+        }
+    }
+
+    @ViewBuilder
+    private var nextGoalsSection: some View {
+        nextGoalsHeader
+        titleRows
+        goalEntry
+    }
+
+    private var nextGoalsHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: "מטרות \(next.shortTitle)")
+            Text("שתיים עד ארבע. מדד אפשר להוסיף אחר כך.")
+                .font(.bodyText(12.5)).foregroundStyle(Palette.meta)
+        }
+    }
+
+    private var titleRows: some View {
+        ForEach(newTitles.indices, id: \.self) { index in
+            HStack(spacing: 10) {
+                Text(newTitles[index]).font(.bodyText(15)).foregroundStyle(Palette.ink).frame(maxWidth: .infinity, alignment: .leading)
+                Button(action: { removeTitle(at: index) }) {
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .light)).foregroundStyle(Palette.meta)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 12)
+            .overlay(alignment: .top) { Rectangle().fill(Palette.lineSoft).frame(height: 1) }
+        }
+    }
+
+    @ViewBuilder
+    private var goalEntry: some View {
+        if plannedCount < Goal.activeLimit {
+            HStack(spacing: 8) {
+                TextField("מטרה חדשה", text: $draft)
+                    .font(.bodyText(16)).submitLabel(.done).onSubmit(addDraft)
+                    .padding(.horizontal, 16).frame(minHeight: 50)
+                    .background(Capsule().fill(Color.white))
+                    .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
+                Button(action: addDraft) {
+                    Circle().fill(Palette.control).frame(width: 50, height: 50)
+                        .overlay(Image(systemName: "plus").font(.system(size: 19, weight: .medium)).foregroundStyle(Color.white))
+                }
+                .buttonStyle(.plain).opacity(canAdd ? 1 : 0.35).disabled(!canAdd)
+            }
+        } else {
+            Text("ארבע מטרות זה המקסימום. חמישית היא כבר רשימת משימות.")
+                .font(.bodyText(12.5)).foregroundStyle(Palette.meta)
+        }
     }
 
     private var header: some View {
@@ -188,6 +185,12 @@ struct QuarterCloseView: View {
         withAnimation(Motion.spring) {
             newTitles.append(trimmed)
             draft = ""
+        }
+    }
+
+    private func removeTitle(at index: Int) {
+        withAnimation(Motion.spring) {
+            _ = newTitles.remove(at: index)
         }
     }
 

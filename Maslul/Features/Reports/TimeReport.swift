@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Aggregation for the time-allocation report (§11).
 ///

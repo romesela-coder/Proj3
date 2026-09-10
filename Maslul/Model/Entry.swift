@@ -8,11 +8,18 @@ import SwiftData
 @Model
 final class Entry {
     var body: String = ""
+    /// Short, editable headline generated locally from the note.
+    var titleText: String = ""
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
+    /// Soft deletion keeps accidental swipes recoverable for 48 hours.
+    var trashedAt: Date?
 
-    /// `nil` means the entry has not been classified yet and is still waiting in
-    /// the tidy queue. It is still searchable and still exported.
+    /// Ephemeral UI state while the local model replaces the fallback title.
+    @Transient var isGeneratingTitle = false
+
+    /// Classification is optional. The user or the local model can set it while
+    /// writing, and it remains editable later.
     var typeRaw: String?
     var effortRaw: String?
 
@@ -39,8 +46,10 @@ final class Entry {
         project: Project? = nil
     ) {
         self.body = body
+        self.titleText = Entry.makeTitle(from: body)
         self.createdAt = createdAt
         self.updatedAt = createdAt
+        self.trashedAt = nil
         self.typeRaw = type?.rawValue
         self.project = project
         self.sensitivityRaw = Sensitivity.normal.rawValue
@@ -76,14 +85,33 @@ extension Entry {
 
     var isSensitive: Bool { sensitivity == .sensitive }
 
-    /// Waiting for the weekly tidy pass.
-    var needsTidy: Bool { typeRaw == nil }
+    var isTrashed: Bool { trashedAt != nil }
 
     var title: String {
+        if !titleText.isEmpty { return titleText }
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let firstLine = trimmed.split(separator: "\n").first.map(String.init) ?? trimmed
-        return firstLine.isEmpty ? "רשומה ריקה" : firstLine
+        return firstLine.isEmpty ? "Empty entry" : firstLine
+    }
+
+    static func makeTitle(from body: String) -> String {
+        let clean = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sentence = clean.split(whereSeparator: { ".!?\n".contains($0) }).first.map(String.init) ?? clean
+        let words = sentence.split(separator: " ").prefix(8)
+        return words.joined(separator: " ")
     }
 
     func touch() { updatedAt = .now }
+
+    func moveToTrash() {
+        trashedAt = .now
+        touch()
+    }
+
+    func restoreFromTrash() {
+        trashedAt = nil
+        touch()
+    }
+
+    static let trashLifetime: TimeInterval = 2 * 24 * 60 * 60
 }
