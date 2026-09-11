@@ -279,9 +279,12 @@ struct OnboardingView: View {
     // MARK: - Bits
 
     private func iconBadge(_ symbol: String) -> some View {
-        Circle()
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
             .fill(Color.white)
-            .overlay(Circle().stroke(Palette.tileLine, lineWidth: 1))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Palette.tileLine, lineWidth: 1)
+            )
             .frame(width: 64, height: 64)
             .overlay(
                 Image(systemName: symbol)

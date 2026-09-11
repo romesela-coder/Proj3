@@ -174,7 +174,7 @@ struct ReminderView: View {
                     if deniedNotice {
                         Text("ההרשאה להתראות נדחתה. אפשר להפעיל אותה בהגדרות המכשיר — האפליקציה תמשיך לעבוד בלעדיה.")
                             .font(.bodyText(13))
-                            .foregroundStyle(Palette.accent)
+                            .foregroundStyle(Palette.ink2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

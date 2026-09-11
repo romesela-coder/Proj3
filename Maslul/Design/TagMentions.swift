@@ -7,7 +7,7 @@ enum TagMentionVisual {
            let selected = TagColorOption(rawValue: tag.colorRaw) {
             return selected.color
         }
-        return Palette.learning
+        return Palette.neutralTile
     }
 }
 
@@ -123,7 +123,7 @@ struct TagMentionSuggestions: View {
                                 .frame(minHeight: 32)
                                 .background(
                                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .fill(Palette.learning)
+                                        .fill(Palette.neutralTile)
                                 )
                             }
                             .buttonStyle(.plain)

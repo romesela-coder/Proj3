@@ -10,7 +10,7 @@ struct CircleButton: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topTrailing) {
                 Circle()
                     .fill(Palette.neutralTile)
                     .overlay(Circle().stroke(Palette.tileLine, lineWidth: 1))
@@ -24,7 +24,7 @@ struct CircleButton: View {
                 if badge > 0 {
                     Text("\(badge)")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Palette.ink)
                         .padding(.horizontal, 6)
                         .frame(minWidth: 21, minHeight: 21)
                         .background(Capsule().fill(Palette.accent))
@@ -32,6 +32,7 @@ struct CircleButton: View {
                 }
             }
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
+            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }

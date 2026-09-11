@@ -449,7 +449,7 @@ private struct TagEditView: View {
             if !isUnique {
                 Text("A tag with this name already exists.")
                     .font(.bodyText(12.5))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.ink2)
             }
 
             VStack(alignment: .leading, spacing: 9) {
@@ -641,7 +641,7 @@ private struct InlineCreateBar: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.bodyText(11.5, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.ink2)
                     .padding(.leading, 2)
             }
         }

@@ -44,6 +44,7 @@ struct EntryIconTile: View {
             }
         }
         .frame(width: size, height: size)
+        .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(artifact.accessibilityLabel)
     }

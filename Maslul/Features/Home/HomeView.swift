@@ -365,7 +365,7 @@ private struct QuickCaptureBar: View {
                 } label: {
                     Image(systemName: dictation.isRecording ? "stop.fill" : "mic.fill")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(dictation.isRecording ? Color.white : Palette.ink2)
+                        .foregroundStyle(dictation.isRecording ? Palette.ink : Palette.ink2)
                         .frame(width: 42, height: 42)
                         .background(
                             Circle().fill(dictation.isRecording ? Palette.accent : Color.white)

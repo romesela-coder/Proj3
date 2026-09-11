@@ -86,7 +86,7 @@ struct ExportView: View {
                     if let errorText {
                         Text(errorText)
                             .font(.bodyText(13))
-                            .foregroundStyle(Palette.accent)
+                            .foregroundStyle(Palette.ink2)
                     }
 
                     PrimaryButton(title: "ייצא ושתף", isEnabled: exportCount > 0) {
