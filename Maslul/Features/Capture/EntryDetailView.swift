@@ -278,11 +278,7 @@ struct EntryDetailView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(EntryType.allCases) { candidate in
-                        Chip(
-                            title: candidate.title,
-                            isOn: entry.type == candidate,
-                            tint: entry.type == candidate ? nil : candidate.tint
-                        ) {
+                        EntryTypeChip(type: candidate, isOn: entry.type == candidate) {
                             mutate {
                                 withAnimation(Motion.spring) {
                                     entry.type = (entry.type == candidate) ? nil : candidate
