@@ -6,6 +6,8 @@ struct MaslulApp: App {
     private let container: ModelContainer
 
     init() {
+        FontLoader.registerBundledFonts()
+
         do {
             // Local store inside the app container, protected until first
             // unlock. There is no CloudKit configuration and no network code

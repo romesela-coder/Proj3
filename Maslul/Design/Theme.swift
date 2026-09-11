@@ -75,16 +75,26 @@ enum Motion {
 
 extension Font {
     static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .bold, design: .default)
+        .custom("SpaceGrotesk-Bold", fixedSize: size)
     }
 
     static func bodyText(_ size: CGFloat = 15.5, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        let name: String
+        if weight == .bold || weight == .heavy || weight == .black {
+            name = "InstrumentSans-Bold"
+        } else if weight == .semibold {
+            name = "InstrumentSans-SemiBold"
+        } else if weight == .medium {
+            name = "InstrumentSans-Medium"
+        } else {
+            name = "InstrumentSans-Regular"
+        }
+        return .custom(name, fixedSize: size)
     }
 
-    /// SF Mono stand-in for dates, counters and system labels.
+    /// DM Mono for dates, counters and system labels.
     static func utility(_ size: CGFloat = 11) -> Font {
-        .system(size: size, weight: .bold, design: .monospaced)
+        .custom("DMMono-Medium", fixedSize: size)
     }
 }
 
