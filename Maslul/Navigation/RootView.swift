@@ -104,44 +104,24 @@ struct DockBar: View {
             if showsCompose {
                 Spacer(minLength: 8)
 
-                VStack(spacing: 8) {
-                    Button {
-                        withAnimation(Motion.spring) { router.openProjects() }
-                    } label: {
-                        Circle()
-                            .fill(Palette.ground)
-                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
-                            .overlay(
-                                Image(systemName: "folder.badge.plus")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(Palette.ink)
-                            )
-                            .overlay(
-                                Circle().stroke(Palette.line, lineWidth: 1)
-                            )
+                Button {
+                    if let composeAction {
+                        composeAction()
+                    } else {
+                        router.newEntry()
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Projects")
-
-                    Button {
-                        if let composeAction {
-                            composeAction()
-                        } else {
-                            router.newEntry()
-                        }
-                    } label: {
-                        Circle()
-                            .fill(Palette.control)
-                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.system(size: 22, weight: .medium))
-                                    .foregroundStyle(Color.white)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("New entry")
+                } label: {
+                    Circle()
+                        .fill(Palette.control)
+                        .frame(width: 60, height: 60)
+                        .overlay(
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundStyle(Color.white)
+                        )
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New entry")
             } else {
                 Spacer(minLength: 0)
             }
@@ -166,10 +146,10 @@ struct DockBar: View {
         } label: {
             Text(tab.title)
                 .font(.bodyText(13.5, weight: .semibold))
-                .foregroundStyle(isOn ? Color.white : Palette.muted)
-                .padding(.horizontal, 17)
-                .frame(minHeight: Metrics.tapTarget)
-                .background(Capsule().fill(isOn ? Palette.controlOn : Color.clear))
+                .foregroundStyle(isOn ? Palette.ink : Color.white)
+                .padding(.horizontal, 21)
+                .frame(minHeight: 48)
+                .background(Capsule().fill(isOn ? Palette.ground : Color.clear))
         }
         .buttonStyle(.plain)
     }

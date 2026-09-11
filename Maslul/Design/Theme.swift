@@ -19,8 +19,8 @@ extension Color {
 
 enum Palette {
     // Surfaces
-    static let ground = Color.white
-    static let neutralTile = Color(rgb: 0xF1F2F2)
+    static let ground = Color(rgb: 0xF8F7F3)
+    static let neutralTile = Color(rgb: 0xF1F0EC)
     static let card = Color(rgb: 0xF7F7F7)
 
     // Ink

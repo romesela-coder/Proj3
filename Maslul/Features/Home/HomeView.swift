@@ -76,14 +76,22 @@ struct HomeView: View {
 
     private var header: some View {
         HStack {
-            CircleButton(symbol: "questionmark") {
+            Button {
                 router.tab = .me
                 router.mePath = [.privacy]
             }
+            label: {
+                Text("?")
+                    .font(.system(size: 21, weight: .regular))
+                    .foregroundStyle(Palette.muted)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Palette.neutralTile))
+            }
+            .buttonStyle(.plain)
             Spacer()
         }
         .padding(.horizontal, Metrics.hMargin)
-        .padding(.top, 12)
+        .padding(.top, 14)
     }
 
     private var dayTitle: some View {
@@ -92,32 +100,52 @@ struct HomeView: View {
                 .font(.display(34))
                 .displayTracking(34)
             Text(calendar.isDateInToday(selectedDate) ? "What happened today?" : Fmt.longDate(selectedDate))
-                .font(.bodyText(14.5))
+                .font(.bodyText(15.5))
                 .foregroundStyle(Palette.meta)
         }
     }
 
     private var dayStrip: some View {
-        HStack(spacing: 0) {
-            ForEach(week, id: \.self) { day in
-                Button {
-                    withAnimation(Motion.spring) { selectedDate = calendar.startOfDay(for: day) }
-                } label: {
-                    VStack(spacing: 6) {
-                        Text(shortWeekday(day))
-                            .font(.utility(10))
-                            .foregroundStyle(Palette.meta)
-                        Text("\(calendar.component(.day, from: day))")
-                            .font(.bodyText(14, weight: calendar.isDate(day, inSameDayAs: selectedDate) ? .bold : .regular))
-                            .foregroundStyle(calendar.isDate(day, inSameDayAs: selectedDate) ? Palette.ink : Palette.muted)
-                        Capsule().fill(calendar.isDate(day, inSameDayAs: selectedDate) ? Palette.ink : Color.clear).frame(width: 24, height: 2)
+        VStack(spacing: 13) {
+            HStack {
+                Text(monthLabel)
+                    .font(.utility(11))
+                    .tracking(2.2)
+                    .foregroundStyle(Palette.meta)
+                Spacer()
+                Text("\(selectedEntries.count) CAUGHT")
+                    .font(.utility(11))
+                    .tracking(1.6)
+                    .foregroundStyle(Palette.meta)
+            }
+
+            HStack(spacing: 7) {
+                ForEach(week, id: \.self) { day in
+                    Button {
+                        withAnimation(Motion.spring) { selectedDate = calendar.startOfDay(for: day) }
+                    } label: {
+                        let isSelected = calendar.isDate(day, inSameDayAs: selectedDate)
+                        VStack(spacing: 8) {
+                            Text(shortWeekday(day).uppercased())
+                                .font(.utility(10))
+                                .foregroundStyle(Palette.meta)
+                            Text("\(calendar.component(.day, from: day))")
+                                .font(.bodyText(15.5, weight: isSelected ? .bold : .regular))
+                                .foregroundStyle(isSelected ? Color.white : Palette.ink2)
+                                .frame(width: 43, height: 48)
+                                .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(isSelected ? Palette.ink : Palette.neutralTile))
+                            Circle()
+                                .fill(entries.contains { calendar.isDate($0.createdAt, inSameDayAs: day) } ? Color(rgb: 0xC7FF32) : Color.clear)
+                                .frame(width: 6, height: 6)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 22)
+        .padding(.top, 24)
+        .padding(.bottom, 18)
     }
 
     private var dayFeed: some View {
@@ -137,7 +165,7 @@ struct HomeView: View {
                     .journalListRow()
             } else {
                 ForEach(selectedEntries) { entry in
-                    Button { router.open(entry) } label: { EntryRowView(entry: entry) }
+                    Button { router.open(entry) } label: { TodayEntryRow(entry: entry) }
                         .buttonStyle(.plain)
                         .journalListRow()
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -161,6 +189,13 @@ struct HomeView: View {
 
     private func shortWeekday(_ date: Date) -> String {
         String(Fmt.weekday(calendar.component(.weekday, from: date)).prefix(2))
+    }
+
+    private var monthLabel: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: selectedDate).uppercased()
     }
 
     private func presentQuickCapture() {
@@ -242,6 +277,52 @@ struct HomeView: View {
             }
             .prefix(5)
             .map { $0 }
+    }
+}
+
+private struct TodayEntryRow: View {
+    let entry: Entry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 9) {
+                EntryIconTile(artifact: EntryArtifact(type: entry.type), size: 48)
+                Text(Fmt.time(entry.createdAt))
+                    .font(.utility(11.5))
+                    .foregroundStyle(Palette.meta)
+            }
+            .frame(width: 58)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(entry.title)
+                    .font(.bodyText(18, weight: .medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.leading)
+
+                if entry.title != entry.body {
+                    Text(entry.body)
+                        .font(.bodyText(14.5))
+                        .foregroundStyle(Palette.meta)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Text(entry.tags.first?.name.uppercased() ?? entry.type?.latin ?? "NOTE")
+                    .font(.utility(10.5))
+                    .tracking(1.1)
+                    .foregroundStyle(Palette.ink2)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
+                    .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 20)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Palette.lineSoft).frame(height: 1)
+        }
+        .contentShape(Rectangle())
     }
 }
 
