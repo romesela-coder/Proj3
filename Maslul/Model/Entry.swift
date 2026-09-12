@@ -39,6 +39,11 @@ final class Entry {
 
     var project: Project?
     var box: EntryBox?
+    /// Stable user-controlled position inside the assigned Box. Existing
+    /// stores are normalized by EntryBoxBootstrap in newest-first order.
+    var boxSortIndex: Int = 0
+    /// Independent manual position inside a Calendar day.
+    var calendarSortIndex: Int = 0
 
     @Relationship(deleteRule: .nullify, inverse: \EntryTag.entries)
     var tags: [EntryTag] = []
@@ -62,9 +67,27 @@ final class Entry {
         self.typeRaw = type?.rawValue
         self.project = project
         self.box = nil
+        self.boxSortIndex = 0
+        self.calendarSortIndex = 0
         self.tags = []
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []
+    }
+}
+
+enum CalendarEntryOrdering {
+    static func placeAtFront(_ entry: Entry, in context: ModelContext) {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: entry.createdAt)
+        let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
+        let firstIndex = entries
+            .filter {
+                $0.persistentModelID != entry.persistentModelID
+                    && calendar.isDate($0.createdAt, inSameDayAs: day)
+            }
+            .map(\.calendarSortIndex)
+            .min() ?? 1
+        entry.calendarSortIndex = firstIndex - 1
     }
 }
 

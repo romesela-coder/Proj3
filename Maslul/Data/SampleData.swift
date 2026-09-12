@@ -92,6 +92,7 @@ enum SampleData {
             ) ?? date
 
             let entry = Entry(body: seed.body, createdAt: stamped, type: seed.type)
+            CalendarEntryOrdering.placeAtFront(entry, in: context)
             if let idx = seed.projectIndex { entry.project = projects[idx] }
             entry.effort = seed.effort
             entry.sensitivity = seed.sensitive ? .sensitive : .normal

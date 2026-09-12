@@ -18,6 +18,7 @@ enum JournalPreset: Hashable {
 
 enum JournalRoute: Hashable {
     case journal(JournalPreset)
+    case box(EntryBox)
 }
 
 enum MeRoute: Hashable {
@@ -60,6 +61,11 @@ final class Router {
 
     func open(_ entry: Entry) {
         sheet = .entry(entry)
+    }
+
+    func open(_ box: EntryBox) {
+        tab = .journal
+        journalPath.append(.box(box))
     }
 
     func startAllocation() {

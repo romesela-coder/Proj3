@@ -147,32 +147,41 @@ the refreshed app on the connected iPhone.
 
 ### 1. Reliability and long-form text
 
+Status: completed September 13, 2026.
+
 This is the immediate next project because it fixes trust and readability in
 the existing product before adding new surfaces.
 
-- Fix the midnight rollover case: a quick entry must use the day that is
-  current when it is submitted rather than remaining on yesterday after the
-  clock crosses midnight unintentionally. Preserve an explicitly selected past
-  day.
-- In Calendar rows, show a deliberate preview made of complete lines with a
+- [x] Fix capture-date drift: quick capture always uses the day and time that
+  are current when it is submitted, and returns Calendar to today. Merely
+  viewing a past day must not backdate a new quick entry.
+- [x] In Calendar rows, show a deliberate preview made of complete lines with a
   clean ellipsis. Inline mention attachments must participate in line-height
   measurement so the preview is never vertically cropped.
-- In entry detail, give the body most of the available space and keep tags and
+- [x] In entry detail, give the body most of the available space and keep tags and
   metadata compact. The body must grow dynamically for longer text and the
   outer sheet should scroll when needed; do not clip after three lines or add a
   competing nested text scroll prematurely.
 
 ### 2. Complete Boxes as the durable organization view
 
-- Tapping a Box title opens a focused full-board view for that Box.
-- Box shelf order is manual and persists. Boxes can be reordered with drag and
+Status: in progress. Focused boards, persistent ordering, and chronological
+sort actions are complete; moving entries between Boxes by direct drag and drop
+remains open.
+
+- [x] Tapping a Box title opens a focused full-board view for that Box.
+- [x] Box shelf order is manual and persists. Boxes can be reordered with drag and
   drop; creation date is not a useful default sort for Box shelves.
-- Entries can be reordered manually within a Box and moved between Boxes with
-  drag and drop. Manual order persists.
-- `Newest` and `Oldest` are explicit sort actions for entries. Applying either
+- [x] Entries can be reordered manually within a Box. Manual order persists.
+- [ ] Entries can be moved between Boxes with direct drag and drop.
+- [x] `Newest` and `Oldest` are explicit sort actions for entries. Applying either
   action replaces the current manual entry order; the user can then make and
   persist further manual adjustments. Applying a sort again resets those
   adjustments to the selected chronological order.
+
+Manual ordering uses native iOS reordering behavior: Calendar and Box shelves
+use `List.onMove`, while the focused two-column Box board uses interactive
+collection-view movement so the cards keep their established proportions.
 
 This requires stable persisted ordering fields and a tested SwiftData
 migration. Do not derive manual order only from transient view indices.

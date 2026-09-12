@@ -460,13 +460,14 @@ struct CaptureView: View {
             type: type,
             project: project
         )
+        CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.originOverride = origin
         entry.effort = effort
         entry.goal = goal
         entry.sensitivity = isSensitive ? .sensitive : .normal
         entry.attachmentNames = attachmentNames
         entry.tags = selectedTags
-        entry.box = EntryBoxBootstrap.inbox(in: context)
+        EntryBoxEntryOrdering.move(entry, to: EntryBoxBootstrap.inbox(in: context))
         context.insert(entry)
         entry.isGeneratingTitle = true
         try? context.save()
