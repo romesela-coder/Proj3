@@ -60,7 +60,7 @@ struct EntryBoxPicker: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Query(sort: \EntryBox.createdAt, order: .forward)
+    @Query(sort: \EntryBox.sortIndex, order: .forward)
     private var boxes: [EntryBox]
 
     @State private var editingBox: EntryBox?
@@ -305,7 +305,8 @@ struct EntryBoxPicker: View {
 
         let box = EntryBox(
             name: EntryBoxNameRules.normalized(draftName),
-            iconSymbol: draftSymbol
+            iconSymbol: draftSymbol,
+            sortIndex: (boxes.map(\.sortIndex).max() ?? -1) + 1
         )
         context.insert(box)
         selectedBox = box

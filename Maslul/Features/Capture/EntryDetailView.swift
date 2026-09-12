@@ -20,6 +20,7 @@ struct EntryDetailView: View {
     @State private var showBoxPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var selectedDetent: PresentationDetent = .fraction(0.68)
+    @State private var bodyEditorHeight: CGFloat = 86
 
     private var activeProjects: [Project] {
         // A closed project stays on the entries already filed under it.
@@ -81,6 +82,7 @@ struct EntryDetailView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 24)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .screenBackground()
         .environment(\.layoutDirection, .leftToRight)
@@ -101,12 +103,19 @@ struct EntryDetailView: View {
             EntryBoxPicker(
                 selectedBox: Binding(
                     get: { entry.box },
-                    set: { value in mutate { entry.box = value } }
+                    set: { value in
+                        guard let value else { return }
+                        mutate { EntryBoxEntryOrdering.move(entry, to: value) }
+                    }
                 )
             )
         }
         .onChange(of: photoItems) { _, items in
             Task { await addAttachments(items) }
+        }
+        .onChange(of: entry.createdAt) { oldValue, newValue in
+            guard !Calendar.current.isDate(oldValue, inSameDayAs: newValue) else { return }
+            CalendarEntryOrdering.placeAtFront(entry, in: context)
         }
         .onDisappear {
             entry.touch()
@@ -185,9 +194,12 @@ struct EntryDetailView: View {
                 placeholder: "Write something…",
                 fontSize: 21,
                 scrolls: false,
-                onFocus: { selectedDetent = .large }
+                onFocus: { selectedDetent = .large },
+                onContentHeightChange: { measuredHeight in
+                    bodyEditorHeight = max(86, ceil(measuredHeight))
+                }
             )
-                .frame(minHeight: 86, maxHeight: 240)
+                .frame(height: bodyEditorHeight)
             TagMentionSuggestions(text: $entry.body, selectedTags: $entry.tags, tags: availableTags)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

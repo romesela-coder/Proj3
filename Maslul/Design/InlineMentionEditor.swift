@@ -2,6 +2,53 @@ import SwiftUI
 import UIKit
 import SwiftData
 
+enum InlineMentionAppearance {
+    case standard
+    case compact
+
+    var fontSize: CGFloat {
+        switch self {
+        case .standard: TagMentionVisual.fontSize
+        case .compact: 10
+        }
+    }
+
+    var height: CGFloat {
+        switch self {
+        case .standard: TagMentionVisual.height
+        case .compact: 18
+        }
+    }
+
+    var horizontalPadding: CGFloat {
+        switch self {
+        case .standard: TagMentionVisual.horizontalPadding
+        case .compact: 5
+        }
+    }
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .standard: TagMentionVisual.cornerRadius
+        case .compact: 5
+        }
+    }
+
+    var emojiFontSize: CGFloat {
+        switch self {
+        case .standard: 12
+        case .compact: 9
+        }
+    }
+
+    var iconGap: CGFloat {
+        switch self {
+        case .standard: 6
+        case .compact: 3
+        }
+    }
+}
+
 struct InlineMentionEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var tags: [EntryTag]
@@ -12,6 +59,7 @@ struct InlineMentionEditor: UIViewRepresentable {
     var autoFocus = false
     var isEditable = true
     var maximumNumberOfLines = 0
+    var mentionAppearance: InlineMentionAppearance = .standard
     var onFocus: (() -> Void)? = nil
     var onInputLanguageChange: ((String?) -> Void)? = nil
     var onContentHeightChange: ((CGFloat) -> Void)? = nil
@@ -184,7 +232,11 @@ struct InlineMentionEditor: UIViewRepresentable {
             }
 
             for match in matches.sorted(by: { $0.range.location > $1.range.location }) {
-                let attachment = MentionAttachment(tag: match.tag, fontSize: parent.fontSize)
+                let attachment = MentionAttachment(
+                    tag: match.tag,
+                    fontSize: parent.fontSize,
+                    appearance: parent.mentionAppearance
+                )
                 result.replaceCharacters(in: match.range, with: NSAttributedString(attachment: attachment))
             }
 
@@ -239,26 +291,26 @@ private final class MentionAttachment: NSTextAttachment {
     let token: String
     let tagID: PersistentIdentifier
 
-    init(tag: EntryTag, fontSize: CGFloat) {
+    init(tag: EntryTag, fontSize: CGFloat, appearance: InlineMentionAppearance) {
         token = "@\(tag.name)"
         tagID = tag.persistentModelID
         super.init(data: nil, ofType: nil)
 
-        let labelFont = UIFont(name: "InstrumentSans-SemiBold", size: TagMentionVisual.fontSize)
-            ?? UIFont.systemFont(ofSize: TagMentionVisual.fontSize, weight: .semibold)
+        let labelFont = UIFont(name: "InstrumentSans-SemiBold", size: appearance.fontSize)
+            ?? UIFont.systemFont(ofSize: appearance.fontSize, weight: .semibold)
         let textSize = (tag.name as NSString).size(withAttributes: [.font: labelFont])
         let emoji = TagMentionVisual.emoji(for: tag)
-        let emojiFont = UIFont.systemFont(ofSize: 12)
+        let emojiFont = UIFont.systemFont(ofSize: appearance.emojiFontSize)
         let emojiSize = emoji.map {
             ($0 as NSString).size(withAttributes: [.font: emojiFont])
         } ?? .zero
-        let iconGap: CGFloat = emoji == nil ? 0 : 6
+        let iconGap: CGFloat = emoji == nil ? 0 : appearance.iconGap
         let size = CGSize(
             width: ceil(textSize.width)
                 + ceil(emojiSize.width)
                 + iconGap
-                + (TagMentionVisual.horizontalPadding * 2),
-            height: TagMentionVisual.height
+                + (appearance.horizontalPadding * 2),
+            height: appearance.height
         )
 
         let color = UIColor(TagMentionVisual.background(for: tag))
@@ -267,14 +319,14 @@ private final class MentionAttachment: NSTextAttachment {
             color.setFill()
             let path = UIBezierPath(
                 roundedRect: CGRect(origin: .zero, size: size),
-                cornerRadius: TagMentionVisual.cornerRadius
+                cornerRadius: appearance.cornerRadius
             )
             path.fill()
             UIColor(Palette.ink.opacity(0.06)).setStroke()
             path.lineWidth = 1
             path.stroke()
 
-            var textX = TagMentionVisual.horizontalPadding
+            var textX = appearance.horizontalPadding
             if let emoji {
                 (emoji as NSString).draw(
                     at: CGPoint(x: textX, y: (size.height - emojiSize.height) / 2),
@@ -305,6 +357,7 @@ struct InlineMentionText: View {
     var fontSize: CGFloat
     var textColor: Color = Palette.meta
     var maximumNumberOfLines = 2
+    var mentionAppearance: InlineMentionAppearance = .standard
 
     @State private var measuredHeight: CGFloat = 24
 
@@ -318,14 +371,15 @@ struct InlineMentionText: View {
             scrolls: false,
             isEditable: false,
             maximumNumberOfLines: maximumNumberOfLines,
+            mentionAppearance: mentionAppearance,
             onContentHeightChange: { height in
-                measuredHeight = min(
-                    height,
-                    CGFloat(maximumNumberOfLines) * (fontSize * 1.3)
-                )
+                // TextKit has already applied maximumNumberOfLines and its
+                // measured height includes taller inline attachments. Capping
+                // this with a font-only estimate clips mention line fragments.
+                measuredHeight = ceil(height)
             }
         )
-        .frame(height: max(measuredHeight, TagMentionVisual.height))
+        .frame(height: max(measuredHeight, mentionAppearance.height))
         .clipped()
         .environment(\.layoutDirection, .leftToRight)
     }

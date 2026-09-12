@@ -46,6 +46,8 @@ struct RootView: View {
                             switch route {
                             case .journal(let preset):
                                 JournalView(preset: preset)
+                            case .box(let box):
+                                BoxDetailView(box: box)
                             }
                         }
                 }

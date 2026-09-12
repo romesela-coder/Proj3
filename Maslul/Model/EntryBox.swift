@@ -28,6 +28,9 @@ final class EntryBox {
     var iconSymbol: String = "tray.full.fill"
     var systemKey: String?
     var createdAt: Date = Date()
+    /// Stable user-controlled shelf order. Existing stores receive the default
+    /// value and are normalized once by EntryBoxBootstrap.
+    var sortIndex: Int = 0
 
     @Relationship(deleteRule: .nullify, inverse: \Entry.box)
     var entries: [Entry] = []
@@ -36,12 +39,14 @@ final class EntryBox {
         name: String,
         iconSymbol: String = "tray.full.fill",
         systemKey: String? = nil,
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        sortIndex: Int = 0
     ) {
         self.name = name
         self.iconSymbol = iconSymbol
         self.systemKey = systemKey
         self.createdAt = createdAt
+        self.sortIndex = sortIndex
         self.entries = []
     }
 }
@@ -74,8 +79,65 @@ enum EntryBoxBootstrap {
             changed = true
         }
 
+        let boxes = (try? context.fetch(FetchDescriptor<EntryBox>())) ?? []
+        let orderedBoxes = boxes.sorted { lhs, rhs in
+            if lhs.sortIndex == rhs.sortIndex {
+                return lhs.createdAt < rhs.createdAt
+            }
+            return lhs.sortIndex < rhs.sortIndex
+        }
+        for (index, box) in orderedBoxes.enumerated() where box.sortIndex != index {
+            box.sortIndex = index
+            changed = true
+        }
+
+        for box in orderedBoxes {
+            let orderedEntries = entries
+                .filter { $0.box?.persistentModelID == box.persistentModelID }
+                .sorted { lhs, rhs in
+                    if lhs.boxSortIndex == rhs.boxSortIndex {
+                        return lhs.createdAt > rhs.createdAt
+                    }
+                    return lhs.boxSortIndex < rhs.boxSortIndex
+                }
+            for (index, entry) in orderedEntries.enumerated() where entry.boxSortIndex != index {
+                entry.boxSortIndex = index
+                changed = true
+            }
+        }
+
+        let calendar = Calendar.current
+        let entriesByDay = Dictionary(grouping: entries) {
+            calendar.startOfDay(for: $0.createdAt)
+        }
+        for dayEntries in entriesByDay.values {
+            let orderedEntries = dayEntries.sorted { lhs, rhs in
+                if lhs.calendarSortIndex == rhs.calendarSortIndex {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.calendarSortIndex < rhs.calendarSortIndex
+            }
+            for (index, entry) in orderedEntries.enumerated()
+            where entry.calendarSortIndex != index {
+                entry.calendarSortIndex = index
+                changed = true
+            }
+        }
+
         if changed {
             try? context.save()
         }
+    }
+}
+
+enum EntryBoxEntryOrdering {
+    static func move(_ entry: Entry, to box: EntryBox) {
+        guard entry.box?.persistentModelID != box.persistentModelID else { return }
+        let firstIndex = box.entries
+            .filter { $0.persistentModelID != entry.persistentModelID }
+            .map(\.boxSortIndex)
+            .min() ?? 1
+        entry.boxSortIndex = firstIndex - 1
+        entry.box = box
     }
 }

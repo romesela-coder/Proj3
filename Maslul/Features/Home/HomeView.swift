@@ -20,7 +20,7 @@ struct HomeView: View {
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
 
-    @Query(sort: \EntryBox.createdAt, order: .forward)
+    @Query(sort: \EntryBox.sortIndex, order: .forward)
     private var boxes: [EntryBox]
 
     @State private var selectedDate = Calendar.current.startOfDay(for: .now)
@@ -31,11 +31,19 @@ struct HomeView: View {
     @State private var viewMode: ViewMode = .calendar
     @State private var weekAnchorDate = Calendar.current.startOfDay(for: .now)
     @State private var calendarEntryRowFrames: [CGRect] = []
+    @State private var calendarEditMode: EditMode = .inactive
 
     private var calendar: Calendar { Calendar.current }
 
     private var selectedEntries: [Entry] {
-        entries.filter { calendar.isDate($0.createdAt, inSameDayAs: selectedDate) }
+        entries
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: selectedDate) }
+            .sorted { lhs, rhs in
+                if lhs.calendarSortIndex == rhs.calendarSortIndex {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.calendarSortIndex < rhs.calendarSortIndex
+            }
     }
 
     private var week: [Date] {
@@ -76,9 +84,12 @@ struct HomeView: View {
                             subtitle: "Everything, where it belongs."
                         )
                             .padding(.horizontal, Metrics.hMargin)
-                        BoxesBoardView(boxes: boxes, entries: entries) { entry in
-                            router.open(entry)
-                        }
+                        BoxesBoardView(
+                            boxes: boxes,
+                            entries: entries,
+                            openBox: { router.open($0) },
+                            openEntry: { router.open($0) }
+                        )
                     }
                     .padding(.top, 30)
                 }
@@ -156,6 +167,7 @@ struct HomeView: View {
             coordinateSpace: .named("home-calendar")
         )
             .onEnded { value in
+                guard !calendarEditMode.isEditing else { return }
                 let horizontal = value.translation.width
                 guard abs(horizontal) > abs(value.translation.height),
                       abs(horizontal) > 54 else { return }
@@ -172,12 +184,22 @@ struct HomeView: View {
 
     private func moveSelectedDay(by offset: Int) {
         guard let next = calendar.date(byAdding: .day, value: offset, to: selectedDate) else { return }
+        let nextDay = calendar.startOfDay(for: next)
         withAnimation(Motion.spring) {
-            selectedDate = calendar.startOfDay(for: next)
+            stopCalendarReordering()
+            selectedDate = nextDay
             if let first = week.first, let last = week.last,
                next < first || next > last {
-                weekAnchorDate = calendar.startOfDay(for: next)
+                weekAnchorDate = nextDay
             }
+        }
+    }
+
+    private func selectDay(_ day: Date) {
+        let selectedDay = calendar.startOfDay(for: day)
+        withAnimation(Motion.spring) {
+            stopCalendarReordering()
+            selectedDate = selectedDay
         }
     }
 
@@ -193,12 +215,14 @@ struct HomeView: View {
                     .font(.utility(11))
                     .tracking(1.6)
                     .foregroundStyle(Palette.meta)
+
+                calendarSortControl
             }
 
             HStack(spacing: 7) {
                 ForEach(week, id: \.self) { day in
                     Button {
-                        withAnimation(Motion.spring) { selectedDate = calendar.startOfDay(for: day) }
+                        selectDay(day)
                     } label: {
                         let isSelected = calendar.isDate(day, inSameDayAs: selectedDate)
                         VStack(spacing: 8) {
@@ -222,6 +246,57 @@ struct HomeView: View {
         }
         .padding(.top, 24)
         .padding(.bottom, 18)
+    }
+
+    @ViewBuilder
+    private var calendarSortControl: some View {
+        if calendarEditMode.isEditing {
+            Button {
+                withAnimation(Motion.spring) { stopCalendarReordering() }
+            } label: {
+                calendarSortLabel(title: "Done", symbol: "checkmark", isActive: true)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Menu {
+                Button {
+                    withAnimation(Motion.spring) {
+                        calendarEditMode = .active
+                    }
+                } label: {
+                    Label("Manual order", systemImage: "line.3.horizontal")
+                }
+
+                Divider()
+
+                Button {
+                    applyCalendarSort(newestFirst: true)
+                } label: {
+                    Label("Newest first", systemImage: "arrow.down")
+                }
+
+                Button {
+                    applyCalendarSort(newestFirst: false)
+                } label: {
+                    Label("Oldest first", systemImage: "arrow.up")
+                }
+            } label: {
+                calendarSortLabel(title: "Sort", symbol: "arrow.up.arrow.down", isActive: false)
+            }
+        }
+    }
+
+    private func calendarSortLabel(title: String, symbol: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+        }
+        .font(.bodyText(11.5, weight: .semibold))
+        .foregroundStyle(isActive ? Color.white : Palette.ink2)
+        .padding(.horizontal, 9)
+        .frame(height: 30)
+        .background(Capsule().fill(isActive ? Palette.control : Palette.neutralTile))
     }
 
     private var dayFeed: some View {
@@ -253,19 +328,51 @@ struct HomeView: View {
                             )
                     }
                         .buttonStyle(.plain)
+                        .disabled(calendarEditMode.isEditing)
                         .journalListRow()
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) { moveToTrash(entry) } label: {
-                                Label("Trash", systemImage: "trash")
+                        .swipeActions(
+                            edge: .trailing,
+                            allowsFullSwipe: !calendarEditMode.isEditing
+                        ) {
+                            if !calendarEditMode.isEditing {
+                                Button(role: .destructive) { moveToTrash(entry) } label: {
+                                    Label("Trash", systemImage: "trash")
+                                }
+                                .tint(.red)
                             }
-                            .tint(.red)
                         }
-                    }
+                }
+                .onMove(perform: moveCalendarEntries)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
+        .environment(\.editMode, $calendarEditMode)
+    }
+
+    private func stopCalendarReordering() {
+        calendarEditMode = .inactive
+    }
+
+    private func applyCalendarSort(newestFirst: Bool) {
+        let ordered = selectedEntries.sorted {
+            newestFirst ? $0.createdAt > $1.createdAt : $0.createdAt < $1.createdAt
+        }
+        persistCalendarOrder(ordered)
+    }
+
+    private func moveCalendarEntries(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = selectedEntries
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        persistCalendarOrder(reordered)
+    }
+
+    private func persistCalendarOrder(_ ordered: [Entry]) {
+        for (index, entry) in ordered.enumerated() {
+            entry.calendarSortIndex = index
+        }
+        try? context.save()
     }
 
     private func moveToTrash(_ entry: Entry) {
@@ -311,9 +418,13 @@ struct HomeView: View {
     private func saveQuickEntry() {
         let body = quickText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
-        let entry = Entry(body: body, createdAt: timestamp(on: selectedDate))
+        let entry = Entry(body: body, createdAt: timestampForSubmission())
+        CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.tags = quickTags
-        entry.box = quickBox ?? EntryBoxBootstrap.inbox(in: context)
+        EntryBoxEntryOrdering.move(
+            entry,
+            to: quickBox ?? EntryBoxBootstrap.inbox(in: context)
+        )
         let initialTitle = entry.titleText
         entry.isGeneratingTitle = true
         context.insert(entry)
@@ -338,17 +449,13 @@ struct HomeView: View {
         dismissQuickCapture()
     }
 
-    private func timestamp(on day: Date) -> Date {
-        if calendar.isDateInToday(day) { return .now }
-
-        let now = Date.now
-        let time = calendar.dateComponents([.hour, .minute, .second], from: now)
-        return calendar.date(
-            bySettingHour: time.hour ?? 0,
-            minute: time.minute ?? 0,
-            second: time.second ?? 0,
-            of: day
-        ) ?? day
+    private func timestampForSubmission(at submittedAt: Date = .now) -> Date {
+        let submissionDay = calendar.startOfDay(for: submittedAt)
+        if selectedDate != submissionDay {
+            selectedDate = submissionDay
+            weekAnchorDate = submissionDay
+        }
+        return submittedAt
     }
 
     private var suggestedTags: [EntryTag] {
