@@ -1,109 +1,159 @@
-# Handoff
+# Maslul handoff
 
-Written by the cloud session that produced every commit in this repo. That
-session runs on Linux with **no Swift toolchain and no access to the user's
-Mac**, so most of this code has never been near a compiler. You have Xcode.
-That is the whole reason you are here.
+Updated September 12, 2026.
 
-## The task
+## Current baseline
 
-**Get a clean build, then keep it clean.** Nothing else is queued.
+The project is an actively tested iPhone app, not an uncompiled prototype. The
+generalized tags, inline mentions, Boxes board, compact entry sheet, attachment
+fixes, Trash, and dictation work have all been built and exercised on a physical
+iPhone with Xcode 26.4 / iOS 26.
+
+The current product loop is:
+
+1. Capture a note from the Today screen by typing or dictating.
+2. Add existing tags inline with `@`, create a missing tag in place, or choose
+   from locally ranked suggestions.
+3. File it into one Box (Inbox by default); the Box icon identifies the entry
+   in Today and Journal.
+4. Edit the entry in a compact sheet and optionally change its box, date,
+   privacy, title, tags, or attachments.
+5. Retrieve entries by day in Calendar, by filing context in Boxes, or through
+   Journal search; use the weekly ritual, allocation, goals, reports, and export
+   for reflection.
+
+## Build and device check
 
 ```bash
-xcodebuild -scheme Maslul -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+xcodebuild \
+  -project Maslul.xcodeproj \
+  -scheme Maslul \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  build
 ```
 
-The user's environment is confirmed: **Xcode 26.4, iOS SDK 26.4**,
-`FoundationModels.framework` present in the SDK, and an **iPhone 17 Pro Max on
-iOS 26** for on-device testing.
+For physical-device work, build with the connected Xcode destination, install
+the resulting `Maslul.app`, and launch bundle identifier
+`com.romesela.maslul`. The user's standing preference is to refresh the build
+on the connected iPhone after every completed implementation change.
 
-## What is and isn't verified
+The currently connected development phone uses these commands:
 
-| Commit | Contents | State |
-| --- | --- | --- |
-| `b82cc56` | 0.1 — onboarding, capture, entry detail, journal, projects, export, reminder, stats | ✅ built and ran on the user's Mac |
-| `8a6e5f4` | 0.2 core — tidy (F2), weekly allocation (F3), time report, goals vs reality, quarter close | ❌ **never compiled** |
-| `51a72ec` | `FoundationModelsSuggester` behind `#if canImport` | ❌ **never compiled, and could not be** on the Xcode 16 the user had at the time |
+```bash
+xcodebuild \
+  -project Maslul.xcodeproj \
+  -scheme Maslul \
+  -configuration Debug \
+  -destination 'id=00008150-001125800205401C' \
+  -allowProvisioningUpdates \
+  build -quiet
 
-So roughly 2,800 lines across 14 new files have never been type-checked. Expect
-a batch of errors on first build. That is the expected state, not a symptom of
-something rotten.
+xcrun devicectl device install app \
+  --device 2911A2B1-6D4F-5301-B2C9-AB36DA5AAEC6 \
+  /Users/rom/Library/Developer/Xcode/DerivedData/Maslul-cadwpieqdxlvwvbaoxvdzdlgpgih/Build/Products/Debug-iphoneos/Maslul.app
 
-## Most likely failures, in order
+xcrun devicectl device process launch \
+  --device 2911A2B1-6D4F-5301-B2C9-AB36DA5AAEC6 \
+  --terminate-existing com.romesela.maslul
+```
 
-1. **`Services/FoundationModelsSuggester.swift`** — the only file written
-   against an SDK that could not be checked at all. Suspect, in order:
-   - `LanguageModelSession(instructions: Self.instructions)` — `instructions`
-     may take an `Instructions` value built by a result builder rather than a
-     plain `String` variable. A string *literal* may convert where a `String`
-     constant does not.
-   - the `@Generable` / `@Guide(description:)` declarations.
-   - the `SystemLanguageModel.default.availability` switch and the
-     `UnavailableReason` case names (`deviceNotEligible`,
-     `appleIntelligenceNotEnabled`, `modelNotReady`).
+If install or launch cannot acquire the device tunnel, confirm that the phone
+is connected and unlocked, then retry. CoreDevice may print a harmless
+"No provider was found" warning before succeeding.
 
-   Fix these against the real SDK. **Do not** delete the file or disable the
-   feature to get green — the user specifically wants the on-device model, and
-   their hardware supports it.
+## Architecture that matters now
 
-2. **`Features/Ritual/AllocationView.swift`** — `PercentSlider` computes
-   geometry by hand because the app forces RTL and `position(x:)` is not
-   mirrored. If the fill or thumb ends up on the wrong side, the fix is the
-   arithmetic inside `PercentSlider`, not adding a layout-direction override.
+- `Model/Tag.swift` owns tag validation, the `TagGroup`/`EntryTag` schema, and
+  bootstrap of legacy entry types and projects.
+- `Model/EntryBox.swift` owns Inbox bootstrap, Box validation, and the
+  one-box-per-entry relationship.
+- `Design/EntryBoxViews.swift` owns Box identity, selection, creation, and
+  Box-level icon editing.
+- `Design/InlineMentionEditor.swift` bridges `UITextView` so mentions can be
+  real inline attachments while storage remains plain text.
+- `Design/TagMentions.swift` owns `@` query parsing, selection, inline tag
+  creation, and mention visuals.
+- `Features/Home/HomeView.swift` owns the Calendar/Boxes mode switch, ranked tag
+  suggestions, compact composer, day swipes, save coordination, and dictation
+  entry point.
+- `Features/Home/BoxesBoardView.swift` owns the Box shelves and compact entry
+  cards used by the Boxes view.
+- `Services/SpeechDictationController.swift` owns both iOS 26
+  `SpeechAnalyzer` dictation and the legacy recognizer fallback.
+- `Services/LocalMetadataGenerator.swift` owns title/icon generation and
+  deterministic fallbacks.
+- `Features/Tags/TagsView.swift` owns tag-group navigation, editing, colors,
+  uniqueness guardrails, and deletion.
 
-3. **SwiftData relationships** — `WeeklyAllocation` ↔ `AllocationSlice`
-   (cascade, with the inverse declared on the allocation side) and
-   `AllocationSlice.project`, which is intentionally unidirectional.
+## Important invariants
 
-4. **`Design/Components.swift`** — `SettingRow` relies on the `@ViewBuilder`
-   attribute propagating to the synthesized memberwise init, plus a constrained
-   `where Trailing == Chevron` init. An ambiguity here lights up many call
-   sites at once, which looks worse than it is.
+- The root environment is LTR with an English locale. Do not reintroduce a
+  forced RTL root because the device or developer conversation is Hebrew.
+- Tag names are globally unique after trimming, case folding, and diacritic
+  folding. Empty names and names longer than 50 characters are invalid.
+- Mention identity lives in `Entry.tags`; the body stores readable `@Name`
+  text. Keep both in sync when changing the editor.
+- Sending an entry during dictation must await `stopAndWait()` so the final
+  volatile phrase is committed before save and title generation.
+- Entry deletion is soft for 48 hours. Tag/group deletion must not delete
+  entries.
+- A Calendar day swipe is valid only when it begins outside an entry row. Rows
+  retain their own native trailing swipe action.
+- Quick capture combines the selected date with the current clock time. Do not
+  regress new entries to `12:00 AM`; old midnight entries cannot be repaired
+  because their original time was never stored.
+- The app has no account, CloudKit container, analytics, third-party SDK, or
+  application networking layer.
+- Foundation Models and Speech failures must leave a usable deterministic or
+  system fallback.
 
-## Before running
+## Regression checklist
 
-**The schema changed in `8a6e5f4`** — `Goal`, `WeeklyAllocation` and
-`AllocationSlice` are new, and `Entry` gained an optional `goal` relationship.
-SwiftData should migrate automatically, but a store created by the 0.1 build
-may crash on launch. If it does: delete the app from the simulator or device
-and run again. Do not add migration code before confirming that is the cause.
+1. Start quick capture; the editor focuses and follows the keyboard smoothly.
+2. Dictate with Hebrew and English keyboards, pause, resume, stop, and send.
+   Previously finalized text must not disappear.
+3. Type `@`, choose a tag, and verify both the editor and saved entry render a
+   framed token with the group emoji and no visible `@`.
+4. Backspace once over a mention: remove the token relationship but keep the
+   tag name as editable text.
+5. Create a tag while writing and verify duplicate/empty/overlong names are
+   rejected globally.
+6. Open Tags, swipe back, edit a tag color, and delete a custom tag/group.
+7. Swipe an entry to Trash, restore it, and verify permanent deletion.
+8. Open an entry with attachments; date and Private remain tappable.
+9. Confirm title generation does not block save and falls back cleanly when the
+   local model rejects the language.
+10. Change an entry from Inbox to another Box and verify the Box icon updates
+    in the entry sheet, Today, and Journal.
+11. Toggle between Calendar and Boxes from the title row. Verify every Box is a
+    shelf, counts exclude trashed entries, and tapping a card opens the entry.
+12. Swipe left-to-right on empty Calendar space to move to the previous day and
+    right-to-left to move to the next day. Repeat on an entry row and verify the
+    day does not change while the row's delete action still works.
+13. Save a new quick entry and verify its timestamp is the current time rather
+    than midnight. Existing historical `12:00 AM` entries are expected to stay
+    unchanged.
+14. Verify the Calendar/Boxes toggle is top-aligned with the title and the
+    Journal/Me control is bottom-aligned with the floating `+` button.
 
-## Once it builds, verify in this order
+## Known debt and next product step
 
-1. App launches into onboarding; stepping through or skipping reaches the home
-   screen.
-2. **אני ← נתוני דוגמה** → on. Loads ~37 entries, 6 projects, 11 weekly
-   allocations (2 deliberately skipped) and 3 goals.
-3. **אני ← סידור שבועי** — cards advance, swipe and buttons both work, the
-   closing screen shows a summary and one question.
-4. **הקצאת זמן** — sliders always sum to 100, the lock holds a project still,
-   the remainder line reads 0%.
-5. **אני ← דוח הקצאת זמן** — bands render, origin split renders, the footer
-   states the skipped-week count.
-6. **אני ← מטרות מול מציאות** — declared next to recorded.
-7. **On the device only: אני ← מודל מקומי** should read "המודל המקומי פעיל".
-   In the simulator it will not — Apple Intelligence does not exist there, and
-   falling back to the keyword suggester is correct behaviour, not a bug.
+The next planned intelligence step is post-capture tag resolution: inspect
+typed or dictated text, snap confident matches to existing tags, and propose
+new tags without silently creating them.
 
-## Ground rules
+The first Boxes board is implemented as vertically stacked Box shelves with
+horizontally scrolling entry cards. Dates remain useful metadata and keep the
+Calendar view, while Box is the durable organizing axis. Board search,
+reordering, drag-and-drop filing, and richer Box actions remain open product
+work; do not add them without confirming the intended interaction.
 
-- **Do not redesign anything.** The wireframes and §05 are binding. If
-  something looks wrong, it is a layout bug, not an invitation.
-- **Do not add features** without the user asking. There is a deliberate
-  not-yet-built list surfaced in-app under *אני ← מה עוד לא נבנה*: review pack,
-  voice dictation, résumé lines, semantic search, Face ID, encrypted backup,
-  and the entire widget family. Widgets were explicitly deferred by the user
-  because they need a second target and an App Group.
-- **Do not weaken the hard constraints in `CLAUDE.md`** to make something
-  easier. If one of them is genuinely blocking, say so and ask.
-- Report honestly what compiled, what ran, and what you could not check. The
-  user has been told plainly at every step which code was unverified; keep
-  that going.
+The generalized tag model currently coexists with legacy `Project` and
+`EntryType` fields. Journal filters, tidy suggestions, reports, and goals still
+depend on those legacy fields. Do not remove them until those consumers have
+been migrated and historical data has a tested conversion path.
 
-## Open product question
-
-The user's own spec (§15) says not to start 0.2 before running 0.1 for six
-weeks. They overrode that deliberately — building turned out to cost a fraction
-of what the spec assumed — and chose to keep implementing. That decision stands;
-don't relitigate it. What is still genuinely unanswered is whether the habit
-holds in real use, and only the user can answer that.
+Some older screens still contain Hebrew copy despite the current LTR English
+direction. Treat that as explicit localization/design debt, not a reason to
+change layout direction.

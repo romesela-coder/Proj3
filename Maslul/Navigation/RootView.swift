@@ -29,6 +29,7 @@ struct RootView: View {
             }
         }
         .task {
+            EntryBoxBootstrap.ensureDefaults(in: context)
             purgeExpiredTrash()
         }
     }
@@ -93,7 +94,7 @@ struct DockBar: View {
     var composeAction: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .bottom, spacing: 12) {
             HStack(spacing: 2) {
                 segment(.journal)
                 segment(.me)
@@ -106,14 +107,16 @@ struct DockBar: View {
 
                 VStack(spacing: 8) {
                     Button {
-                        withAnimation(Motion.spring) { router.openProjects() }
+                        withAnimation(Motion.spring) {
+                            router.openTags()
+                        }
                     } label: {
                         Circle()
                             .fill(Palette.ground)
-                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
+                            .frame(width: 60, height: 60)
                             .overlay(
-                                Image(systemName: "folder.badge.plus")
-                                    .font(.system(size: 17, weight: .semibold))
+                                Image(systemName: "tag")
+                                    .font(.system(size: 19, weight: .semibold))
                                     .foregroundStyle(Palette.ink)
                             )
                             .overlay(
@@ -121,7 +124,7 @@ struct DockBar: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Projects")
+                    .accessibilityLabel("Tags")
 
                     Button {
                         if let composeAction {
@@ -132,10 +135,10 @@ struct DockBar: View {
                     } label: {
                         Circle()
                             .fill(Palette.control)
-                            .frame(width: Metrics.dockHeight, height: Metrics.dockHeight)
+                            .frame(width: 60, height: 60)
                             .overlay(
                                 Image(systemName: "plus")
-                                    .font(.system(size: 22, weight: .medium))
+                                    .font(.system(size: 24, weight: .medium))
                                     .foregroundStyle(Color.white)
                             )
                     }
@@ -166,10 +169,10 @@ struct DockBar: View {
         } label: {
             Text(tab.title)
                 .font(.bodyText(13.5, weight: .semibold))
-                .foregroundStyle(isOn ? Color.white : Palette.muted)
-                .padding(.horizontal, 17)
-                .frame(minHeight: Metrics.tapTarget)
-                .background(Capsule().fill(isOn ? Palette.controlOn : Color.clear))
+                .foregroundStyle(isOn ? Palette.ink : Color.white)
+                .padding(.horizontal, 21)
+                .frame(minHeight: 48)
+                .background(Capsule().fill(isOn ? Palette.ground : Color.clear))
         }
         .buttonStyle(.plain)
     }

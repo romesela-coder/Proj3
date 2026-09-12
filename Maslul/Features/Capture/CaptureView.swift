@@ -259,12 +259,38 @@ struct CaptureView: View {
 
     private var typeSection: some View {
         classificationSection("Type") {
-            chipGrid {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
+                spacing: 8
+            ) {
                 ForEach(EntryType.allCases) { candidate in
-                    Chip(title: chipTitle(candidate.title, field: .type, selected: type == candidate), isOn: type == candidate, tint: type == candidate ? nil : candidate.tint) {
+                    Button {
                         suggestedFields.remove(.type)
                         withAnimation(Motion.spring) { type = type == candidate ? nil : candidate }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 9) {
+                            EntryIconTile(
+                                artifact: EntryArtifact(type: candidate),
+                                needsAttention: suggestedFields.contains(.type) && type == candidate,
+                                size: 38
+                            )
+                            Text(candidate.title)
+                                .font(.bodyText(13.5, weight: .semibold))
+                                .foregroundStyle(type == candidate ? Color.white : Palette.ink)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
+                        .padding(11)
+                        .background {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(type == candidate ? Palette.control : Color.white)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(type == candidate ? Palette.control : Palette.lineSoft, lineWidth: 1)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -440,6 +466,7 @@ struct CaptureView: View {
         entry.sensitivity = isSensitive ? .sensitive : .normal
         entry.attachmentNames = attachmentNames
         entry.tags = selectedTags
+        entry.box = EntryBoxBootstrap.inbox(in: context)
         context.insert(entry)
         entry.isGeneratingTitle = true
         try? context.save()

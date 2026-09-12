@@ -5,16 +5,13 @@ struct EntryRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(Fmt.dayDot(entry.createdAt))
-                .font(.utility(11.5))
-                .foregroundStyle(Palette.meta)
-                .frame(width: 44, alignment: .leading)
-                .padding(.top, 2)
-
-            Circle()
-                .fill(entry.type?.tint ?? Palette.line)
-                .frame(width: 9, height: 9)
-                .padding(.top, 8)
+            VStack(spacing: 7) {
+                EntryBoxTile(box: entry.box, size: 44)
+                Text(Fmt.dayDot(entry.createdAt))
+                    .font(.utility(10))
+                    .foregroundStyle(Palette.meta)
+            }
+            .frame(width: 52)
 
             VStack(alignment: .leading, spacing: 2) {
                 if let type = entry.type {
@@ -28,18 +25,19 @@ struct EntryRowView: View {
                     AIActivityIndicator(messages: ["Naming", "Summarizing"], compact: true)
                 } else {
                     Text(entry.title)
-                        .font(.bodyText(14.5))
+                        .font(.bodyText(16, weight: .semibold))
                         .foregroundStyle(Palette.ink)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
 
                 if entry.title != entry.body {
-                    Text(entry.body)
-                        .font(.bodyText(12.5))
-                        .foregroundStyle(Palette.meta)
-                        .lineLimit(1)
-                        .multilineTextAlignment(.leading)
+                    InlineMentionText(
+                        text: entry.body,
+                        tags: entry.tags,
+                        fontSize: 13.5,
+                        maximumNumberOfLines: 1
+                    )
                 }
 
                 if let project = entry.project {
@@ -64,7 +62,7 @@ struct EntryRowView: View {
                     .padding(.top, 2)
             }
         }
-        .padding(.vertical, 15)
+        .padding(.vertical, 18)
         .frame(minHeight: Metrics.rowMinHeight)
         .fixedSize(horizontal: false, vertical: true)
         .overlay(alignment: .top) {

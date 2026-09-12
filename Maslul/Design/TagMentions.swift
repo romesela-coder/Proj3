@@ -2,12 +2,22 @@ import SwiftUI
 import SwiftData
 
 enum TagMentionVisual {
+    static let fontSize: CGFloat = 12.5
+    static let height: CGFloat = 28
+    static let horizontalPadding: CGFloat = 9
+    static let cornerRadius: CGFloat = 8
+
     static func background(for tag: EntryTag) -> Color {
         if tag.colorRaw != TagColorOption.neutral.rawValue,
            let selected = TagColorOption(rawValue: tag.colorRaw) {
             return selected.color
         }
-        return Palette.learning
+        return Palette.tagLemon
+    }
+
+    static func emoji(for tag: EntryTag) -> String? {
+        guard let emoji = tag.group?.emoji, !emoji.isEmpty else { return nil }
+        return emoji
     }
 }
 
@@ -86,9 +96,9 @@ struct TagMentionSuggestions: View {
                                 .font(.bodyText(12.5, weight: .semibold))
                                 .foregroundStyle(Palette.ink)
                                 .padding(.horizontal, 11)
-                                .frame(minHeight: 32)
+                                .frame(height: TagMentionVisual.height)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
                                         .fill(Palette.neutralTile)
                                 )
                             }
@@ -99,7 +109,7 @@ struct TagMentionSuggestions: View {
                             Image(systemName: "xmark")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Palette.muted)
-                                .frame(width: 32, height: 32)
+                                .frame(width: TagMentionVisual.height, height: TagMentionVisual.height)
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -120,10 +130,10 @@ struct TagMentionSuggestions: View {
                                 .font(.bodyText(12.5, weight: .semibold))
                                 .foregroundStyle(Palette.ink)
                                 .padding(.horizontal, 11)
-                                .frame(minHeight: 32)
+                                .frame(height: TagMentionVisual.height)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .fill(Palette.learning)
+                                    RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
+                                        .fill(Palette.neutralTile)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -171,19 +181,10 @@ struct MentionCard: View {
         TagMentionVisual.background(for: tag)
     }
 
-    private var icon: String? {
-        if tag.group?.systemKey == "projects",
-           !tag.emoji.isEmpty,
-           tag.emoji != "🏷️" {
-            return tag.emoji
-        }
-        return tag.group?.emoji
-    }
-
     var body: some View {
         HStack(spacing: 6) {
-            if let icon, !icon.isEmpty {
-                Text(icon)
+            if let emoji = TagMentionVisual.emoji(for: tag) {
+                Text(emoji)
                     .font(.system(size: 12))
             }
 
@@ -198,16 +199,16 @@ struct MentionCard: View {
             }
 
         }
-        .font(.bodyText(12.5, weight: .semibold))
+        .font(.bodyText(TagMentionVisual.fontSize, weight: .semibold))
         .foregroundStyle(Palette.ink)
-        .padding(.horizontal, 10)
-        .frame(minHeight: 32)
+        .padding(.horizontal, TagMentionVisual.horizontalPadding)
+        .frame(height: TagMentionVisual.height)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
                 .fill(background)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
                 .stroke(Palette.ink.opacity(0.06), lineWidth: 1)
         )
     }

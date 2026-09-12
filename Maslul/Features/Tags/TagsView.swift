@@ -300,14 +300,7 @@ private struct TagGroupDetailView: View {
 
     private func tagPill(_ tag: EntryTag) -> some View {
         Button { editingTag = tag } label: {
-            Text(tag.name)
-                .lineLimit(1)
-            .font(.bodyText(14, weight: .semibold))
-            .foregroundStyle(Palette.ink)
-            .padding(.horizontal, 15)
-            .frame(minHeight: 40)
-            .background(Capsule().fill(TagColorOption(rawValue: tag.colorRaw)?.color ?? Palette.neutralTile))
-            .overlay(Capsule().stroke(tag.colorRaw == "neutral" ? Palette.line : Color.clear, lineWidth: 1))
+            MentionCard(tag: tag)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Edit tag")
@@ -449,7 +442,7 @@ private struct TagEditView: View {
             if !isUnique {
                 Text("A tag with this name already exists.")
                     .font(.bodyText(12.5))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.ink2)
             }
 
             VStack(alignment: .leading, spacing: 9) {
@@ -641,7 +634,7 @@ private struct InlineCreateBar: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.bodyText(11.5, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.ink2)
                     .padding(.leading, 2)
             }
         }

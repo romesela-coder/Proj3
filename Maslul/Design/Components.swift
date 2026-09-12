@@ -10,7 +10,7 @@ struct CircleButton: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topTrailing) {
                 Circle()
                     .fill(Palette.neutralTile)
                     .overlay(Circle().stroke(Palette.tileLine, lineWidth: 1))
@@ -24,7 +24,7 @@ struct CircleButton: View {
                 if badge > 0 {
                     Text("\(badge)")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Palette.ink)
                         .padding(.horizontal, 6)
                         .frame(minWidth: 21, minHeight: 21)
                         .background(Capsule().fill(Palette.accent))
@@ -32,6 +32,7 @@ struct CircleButton: View {
                 }
             }
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
+            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }
@@ -46,22 +47,17 @@ struct TypeTile: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .overlay(Circle().stroke(Palette.tileLine, lineWidth: 1))
-                    Image(systemName: type.symbol)
-                        .font(.system(size: 17, weight: .light))
-                        .foregroundStyle(Palette.ink)
-                }
-                .frame(width: 40, height: 40)
+                EntryIconTile(
+                    artifact: EntryArtifact(type: type),
+                    size: 44
+                )
 
                 Spacer(minLength: 12)
 
                 Text(type.latin)
                     .font(.utility(10.5))
                     .tracking(1.4)
-                    .foregroundStyle(Palette.ink.opacity(0.45))
+                    .foregroundStyle(Palette.meta)
                 Text(type.title)
                     .font(.bodyText(16.5, weight: .bold))
                     .foregroundStyle(Palette.ink)
@@ -70,8 +66,12 @@ struct TypeTile: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
-                    .fill(type.tint)
+                    .fill(Color.white)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                    .stroke(Palette.lineSoft, lineWidth: 1)
+            }
         }
         .buttonStyle(TilePressStyle())
     }
@@ -114,7 +114,7 @@ struct Chip: View {
             .foregroundStyle(isOn ? Color.white : (isAIWorking ? AIVisual.violet : Palette.ink2))
             .padding(.horizontal, 14)
             .frame(minHeight: 36)
-            .background(shape.fill(isOn ? Palette.control : (isAIWorking ? AIVisual.wash : (tint ?? Color.white))))
+            .background(shape.fill(isOn ? Palette.control : (isAIWorking ? AIVisual.wash : Color.white)))
             .overlay(shape.stroke(isOn ? Palette.control : (isAIWorking ? AIVisual.violet.opacity(0.35) : Palette.line), lineWidth: 1))
     }
 
@@ -128,12 +128,42 @@ struct Chip: View {
     }
 }
 
+/// Compact type control for filters and metadata. The artifact carries the
+/// visual meaning; the word keeps the system understandable on first use.
+struct EntryTypeChip: View {
+    let type: EntryType
+    var isOn = false
+    var needsAttention = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                EntryIconTile(
+                    artifact: EntryArtifact(type: type),
+                    needsAttention: needsAttention,
+                    size: 30
+                )
+                Text(type.title)
+                    .font(.bodyText(13.5, weight: .semibold))
+                    .foregroundStyle(isOn ? Color.white : Palette.ink)
+            }
+            .padding(.leading, 5)
+            .padding(.trailing, 13)
+            .frame(minHeight: 40)
+            .background(Capsule().fill(isOn ? Palette.control : Color.white))
+            .overlay(Capsule().stroke(isOn ? Palette.control : Palette.line, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Local AI activity
 
 enum AIVisual {
-    static let violet = Color(rgb: 0x7756E8)
-    static let electric = Color(rgb: 0xB35CFF)
-    static let wash = Color(rgb: 0xF5F0FF)
+    static let violet = Palette.ink
+    static let electric = Palette.accent
+    static let wash = Palette.neutralTile
 }
 
 /// A quiet, inline acknowledgement that the on-device model is working.
@@ -332,14 +362,22 @@ struct SettingRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             if let symbol {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .light))
-                    .foregroundStyle(Palette.muted)
-                    .frame(width: 24)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(Color.white)
+                    .frame(width: 40, height: 40)
+                    .overlay {
+                        Image(systemName: symbol)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Palette.ink)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .stroke(Palette.lineSoft, lineWidth: 1)
+                    }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.bodyText(15.5))
+                    .font(.bodyText(15.5, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                 if let subtitle {
                     Text(subtitle)

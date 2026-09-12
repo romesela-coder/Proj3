@@ -19,9 +19,9 @@ extension Color {
 
 enum Palette {
     // Surfaces
-    static let ground = Color.white
-    static let neutralTile = Color(rgb: 0xF1F2F2)
-    static let card = Color(rgb: 0xF7F7F7)
+    static let ground = Color(rgb: 0xF8F7F3)
+    static let neutralTile = Color(rgb: 0xF1F0EC)
+    static let card = Color.white
 
     // Ink
     static let ink = Color(rgb: 0x1A1A1A)
@@ -40,7 +40,8 @@ enum Palette {
     static let controlOn = Color(rgb: 0x3A3A3A)
 
     // The one live accent — only for state that needs attention (spec §05.05)
-    static let accent = Color(rgb: 0xFF5C3A)
+    static let accent = Color(rgb: 0xC7FF32)
+    static let tagLemon = Color(rgb: 0xEEFFC7)
 
     // Entry-type tints
     static let win = Color(rgb: 0xE1F7DD)
@@ -75,16 +76,26 @@ enum Motion {
 
 extension Font {
     static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .bold, design: .default)
+        .custom("SpaceGrotesk-Bold", fixedSize: size)
     }
 
     static func bodyText(_ size: CGFloat = 15.5, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        let name: String
+        if weight == .bold || weight == .heavy || weight == .black {
+            name = "InstrumentSans-Bold"
+        } else if weight == .semibold {
+            name = "InstrumentSans-SemiBold"
+        } else if weight == .medium {
+            name = "InstrumentSans-Medium"
+        } else {
+            name = "InstrumentSans-Regular"
+        }
+        return .custom(name, fixedSize: size)
     }
 
-    /// SF Mono stand-in for dates, counters and system labels.
+    /// DM Mono for dates, counters and system labels.
     static func utility(_ size: CGFloat = 11) -> Font {
-        .system(size: size, weight: .bold, design: .monospaced)
+        .custom("DMMono-Medium", fixedSize: size)
     }
 }
 

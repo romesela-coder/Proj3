@@ -7,8 +7,11 @@ struct InlineMentionEditor: UIViewRepresentable {
     @Binding var tags: [EntryTag]
     let placeholder: String
     var fontSize: CGFloat = 18
+    var textColor: Color = Palette.ink
     var scrolls = false
     var autoFocus = false
+    var isEditable = true
+    var maximumNumberOfLines = 0
     var onFocus: (() -> Void)? = nil
     var onInputLanguageChange: ((String?) -> Void)? = nil
     var onContentHeightChange: ((CGFloat) -> Void)? = nil
@@ -22,11 +25,18 @@ struct InlineMentionEditor: UIViewRepresentable {
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
         view.font = .systemFont(ofSize: fontSize)
-        view.textColor = UIColor(Palette.ink)
+        view.textColor = UIColor(textColor)
         view.isScrollEnabled = scrolls
+        view.isEditable = isEditable
+        view.isSelectable = isEditable
+        view.isUserInteractionEnabled = isEditable
         view.keyboardDismissMode = scrolls ? .interactive : .none
+        view.textContainer.maximumNumberOfLines = maximumNumberOfLines
+        view.textContainer.lineBreakMode = maximumNumberOfLines > 0 ? .byTruncatingTail : .byWordWrapping
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        context.coordinator.observeInputLanguage(of: view)
+        if isEditable {
+            context.coordinator.observeInputLanguage(of: view)
+        }
 
         let placeholderLabel = UILabel()
         placeholderLabel.text = placeholder
@@ -43,7 +53,7 @@ struct InlineMentionEditor: UIViewRepresentable {
         context.coordinator.render(in: view, plainText: text, tags: tags)
         context.coordinator.reportContentHeight(of: view)
         placeholderLabel.isHidden = !text.isEmpty
-        if autoFocus {
+        if autoFocus, isEditable {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { view.becomeFirstResponder() }
         }
         return view
@@ -51,8 +61,14 @@ struct InlineMentionEditor: UIViewRepresentable {
 
     func updateUIView(_ view: UITextView, context: Context) {
         context.coordinator.parent = self
+        view.textColor = UIColor(textColor)
         view.isScrollEnabled = scrolls
+        view.isEditable = isEditable
+        view.isSelectable = isEditable
+        view.isUserInteractionEnabled = isEditable
         view.keyboardDismissMode = scrolls ? .interactive : .none
+        view.textContainer.maximumNumberOfLines = maximumNumberOfLines
+        view.textContainer.lineBreakMode = maximumNumberOfLines > 0 ? .byTruncatingTail : .byWordWrapping
         if context.coordinator.plainText(from: view.attributedText) != text ||
             context.coordinator.renderedTagIDs != tags.map(\.persistentModelID) {
             context.coordinator.render(in: view, plainText: text, tags: tags)
@@ -175,7 +191,9 @@ struct InlineMentionEditor: UIViewRepresentable {
             let wasFirstResponder = view.isFirstResponder
             view.attributedText = result
             view.typingAttributes = baseAttributes(fontSize: parent.fontSize)
-            view.selectedRange = NSRange(location: result.length, length: 0)
+            if parent.isEditable {
+                view.selectedRange = NSRange(location: result.length, length: 0)
+            }
             if view.isScrollEnabled, result.length > 0 {
                 view.scrollRangeToVisible(NSRange(location: result.length - 1, length: 1))
             }
@@ -211,7 +229,7 @@ struct InlineMentionEditor: UIViewRepresentable {
         private func baseAttributes(fontSize: CGFloat) -> [NSAttributedString.Key: Any] {
             [
                 .font: UIFont.systemFont(ofSize: fontSize),
-                .foregroundColor: UIColor(Palette.ink)
+                .foregroundColor: UIColor(parent.textColor)
             ]
         }
     }
@@ -226,29 +244,89 @@ private final class MentionAttachment: NSTextAttachment {
         tagID = tag.persistentModelID
         super.init(data: nil, ofType: nil)
 
-        let icon: String? = {
-            if tag.group?.systemKey == "projects", !tag.emoji.isEmpty, tag.emoji != "🏷️" {
-                return tag.emoji
-            }
-            return tag.group?.emoji
-        }()
-        let label = [icon, tag.name].compactMap { $0 }.joined(separator: " ")
-        let labelFont = UIFont.systemFont(ofSize: max(12, fontSize - 3), weight: .semibold)
-        let textSize = (label as NSString).size(withAttributes: [.font: labelFont])
-        let size = CGSize(width: ceil(textSize.width) + 16, height: max(27, ceil(textSize.height) + 8))
+        let labelFont = UIFont(name: "InstrumentSans-SemiBold", size: TagMentionVisual.fontSize)
+            ?? UIFont.systemFont(ofSize: TagMentionVisual.fontSize, weight: .semibold)
+        let textSize = (tag.name as NSString).size(withAttributes: [.font: labelFont])
+        let emoji = TagMentionVisual.emoji(for: tag)
+        let emojiFont = UIFont.systemFont(ofSize: 12)
+        let emojiSize = emoji.map {
+            ($0 as NSString).size(withAttributes: [.font: emojiFont])
+        } ?? .zero
+        let iconGap: CGFloat = emoji == nil ? 0 : 6
+        let size = CGSize(
+            width: ceil(textSize.width)
+                + ceil(emojiSize.width)
+                + iconGap
+                + (TagMentionVisual.horizontalPadding * 2),
+            height: TagMentionVisual.height
+        )
 
         let color = UIColor(TagMentionVisual.background(for: tag))
 
         image = UIGraphicsImageRenderer(size: size).image { _ in
             color.setFill()
-            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8).fill()
-            (label as NSString).draw(
-                at: CGPoint(x: 8, y: (size.height - textSize.height) / 2),
+            let path = UIBezierPath(
+                roundedRect: CGRect(origin: .zero, size: size),
+                cornerRadius: TagMentionVisual.cornerRadius
+            )
+            path.fill()
+            UIColor(Palette.ink.opacity(0.06)).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+
+            var textX = TagMentionVisual.horizontalPadding
+            if let emoji {
+                (emoji as NSString).draw(
+                    at: CGPoint(x: textX, y: (size.height - emojiSize.height) / 2),
+                    withAttributes: [.font: emojiFont]
+                )
+                textX += emojiSize.width + iconGap
+            }
+
+            (tag.name as NSString).draw(
+                at: CGPoint(
+                    x: textX,
+                    y: (size.height - textSize.height) / 2
+                ),
                 withAttributes: [.font: labelFont, .foregroundColor: UIColor(Palette.ink)]
             )
         }
-        bounds = CGRect(x: 0, y: -5, width: size.width, height: size.height)
+        let bodyFont = UIFont.systemFont(ofSize: fontSize)
+        let baselineOffset = (bodyFont.capHeight - size.height) / 2
+        bounds = CGRect(x: 0, y: baselineOffset, width: size.width, height: size.height)
     }
 
     required init?(coder: NSCoder) { nil }
+}
+
+struct InlineMentionText: View {
+    let text: String
+    let tags: [EntryTag]
+    var fontSize: CGFloat
+    var textColor: Color = Palette.meta
+    var maximumNumberOfLines = 2
+
+    @State private var measuredHeight: CGFloat = 24
+
+    var body: some View {
+        InlineMentionEditor(
+            text: .constant(text),
+            tags: .constant(tags),
+            placeholder: "",
+            fontSize: fontSize,
+            textColor: textColor,
+            scrolls: false,
+            isEditable: false,
+            maximumNumberOfLines: maximumNumberOfLines,
+            onContentHeightChange: { height in
+                measuredHeight = min(
+                    height,
+                    CGFloat(maximumNumberOfLines) * (fontSize * 1.3)
+                )
+            }
+        )
+        .frame(height: max(measuredHeight, TagMentionVisual.height))
+        .clipped()
+        .environment(\.layoutDirection, .leftToRight)
+    }
 }

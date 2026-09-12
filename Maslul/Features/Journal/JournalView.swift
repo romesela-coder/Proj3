@@ -161,11 +161,7 @@ struct JournalView: View {
                     }
                 }
                 ForEach(EntryType.allCases) { candidate in
-                    Chip(
-                        title: candidate.title,
-                        isOn: typeFilter == candidate,
-                        tint: typeFilter == candidate ? nil : candidate.tint
-                    ) {
+                    EntryTypeChip(type: candidate, isOn: typeFilter == candidate) {
                         withAnimation(Motion.spring) {
                             typeFilter = (typeFilter == candidate) ? nil : candidate
                         }
