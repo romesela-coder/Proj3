@@ -1,6 +1,6 @@
 # Maslul handoff
 
-Updated September 12, 2026.
+Updated September 13, 2026.
 
 ## Current baseline
 
@@ -19,8 +19,8 @@ The current product loop is:
 4. Edit the entry in a compact sheet and optionally change its box, date,
    privacy, title, tags, or attachments.
 5. Retrieve entries by day in Calendar, by filing context in Boxes, or through
-   Journal search; use the weekly ritual, allocation, goals, reports, and export
-   for reflection.
+   Journal search. The older ritual, allocation, goals, and reports surfaces are
+   legacy product areas and should not be treated as the direction for new work.
 
 ## Build and device check
 
@@ -137,22 +137,130 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
 14. Verify the Calendar/Boxes toggle is top-aligned with the title and the
     Journal/Me control is bottom-aligned with the floating `+` button.
 
-## Known debt and next product step
+## Product roadmap
 
-The next planned intelligence step is post-capture tag resolution: inspect
-typed or dictated text, snap confident matches to existing tags, and propose
-new tags without silently creating them.
+This roadmap captures the product decisions made from the ideas stored in the
+`Fixes` and `Add to the app` Boxes. Each numbered item is its own project. Ship
+and test it in small slices rather than combining the roadmap into one large
+change. After every completed implementation slice, build, install, and launch
+the refreshed app on the connected iPhone.
 
-The first Boxes board is implemented as vertically stacked Box shelves with
-horizontally scrolling entry cards. Dates remain useful metadata and keep the
-Calendar view, while Box is the durable organizing axis. Board search,
-reordering, drag-and-drop filing, and richer Box actions remain open product
-work; do not add them without confirming the intended interaction.
+### 1. Reliability and long-form text
+
+This is the immediate next project because it fixes trust and readability in
+the existing product before adding new surfaces.
+
+- Fix the midnight rollover case: a quick entry must use the day that is
+  current when it is submitted rather than remaining on yesterday after the
+  clock crosses midnight unintentionally. Preserve an explicitly selected past
+  day.
+- In Calendar rows, show a deliberate preview made of complete lines with a
+  clean ellipsis. Inline mention attachments must participate in line-height
+  measurement so the preview is never vertically cropped.
+- In entry detail, give the body most of the available space and keep tags and
+  metadata compact. The body must grow dynamically for longer text and the
+  outer sheet should scroll when needed; do not clip after three lines or add a
+  competing nested text scroll prematurely.
+
+### 2. Complete Boxes as the durable organization view
+
+- Tapping a Box title opens a focused full-board view for that Box.
+- Box shelf order is manual and persists. Boxes can be reordered with drag and
+  drop; creation date is not a useful default sort for Box shelves.
+- Entries can be reordered manually within a Box and moved between Boxes with
+  drag and drop. Manual order persists.
+- `Newest` and `Oldest` are explicit sort actions for entries. Applying either
+  action replaces the current manual entry order; the user can then make and
+  persist further manual adjustments. Applying a sort again resets those
+  adjustments to the selected chronological order.
+
+This requires stable persisted ordering fields and a tested SwiftData
+migration. Do not derive manual order only from transient view indices.
+
+### 3. Global search
+
+Search is global rather than limited to the Journal list. It should open as a
+focused full-screen search surface with the keyboard active and recent
+Tags/Boxes visible before a query is entered.
+
+- Search entry titles and bodies, Tag names, Box names, and dates.
+- Group direct Tag and Box matches separately from matching entries. Selecting
+  a Tag opens its entries; selecting a Box opens its board.
+- Support filters for Box, Tag, date or date range, attachments, privacy, and
+  `Newest`/`Oldest` ordering.
+- Normalize case and diacritics, support partial matches, and tolerate modest
+  spelling errors in both English and Hebrew input.
+- Start with fast deterministic local search. Natural-language and semantic
+  retrieval belong to the later AI project and must not block this version.
+
+### 4. Full entry editor
+
+Keep quick capture minimal. Swiping upward while creating an entry, or
+expanding an existing entry, should transition smoothly to a full-screen editor
+without losing text, selection, mentions, or keyboard state.
+
+- Support long notes with natural dynamic growth and scrolling.
+- Add only basic formatting initially: bold, italic, bulleted lists, numbered
+  lists, and checklists.
+- Keep mentions, Box, date, privacy, and attachments part of the same entry.
+- Persist formatting and semantic mentions in a structured, migration-safe
+  representation. Do not bolt formatting onto the plain body string in a way
+  that breaks mention identity, export, or older entries.
+
+### 5. Per-entry reminders
+
+Allow an entry to schedule a local notification using either a small set of
+useful preset times or a custom date and time. This is separate from the Weekly
+Interview feature. Reminder creation, editing, deletion, notification
+permission, and behavior after an entry is trashed all need explicit handling.
+
+### 6. Sensory design
+
+Add this as a coherent pass after the core interactions above have stabilized,
+not as unrelated feedback calls scattered through feature code.
+
+- Use very subtle haptics for meaningful state changes such as committing a
+  selection or completing a save.
+- Reserve clearer feedback for destructive or irreversible actions.
+- Use sound only for rare, high-value moments such as a successful entry save;
+  never add sound to routine taps.
+- Respect the device's Silent Mode and accessibility/system preferences.
+
+The goal is quiet richness: users should feel polish without consciously
+noticing repeated effects.
+
+### 7. Weekly Interview
+
+Treat Weekly Interview as a separate future feature, not as recurring entry
+reminders. It may eventually support configurable questions, scheduling,
+custom prompts, recurrence, and snooze. The existing weekly reminder/ritual
+code is not automatically the desired product and must be reassessed before
+reuse.
+
+### 8. Goals rebuild
+
+Goals is a large future feature and is deliberately out of the current scope.
+Remove the legacy Goals product when this project begins and design it again
+from first principles: define a goal, track its state or progress, and build a
+timeline of entries and smaller events related to it. A Goal may eventually be
+implemented on top of Box-like primitives, but that is an architectural option
+rather than a settled user-facing model.
+
+### 9. AI and Hebrew intelligence
+
+AI is explicitly deferred and must not be treated as the next product step. It
+is a separate project that can later cover Hebrew-aware metadata, post-capture
+tag snapping, suggestions for new tags, and semantic search. Preserve the
+current deterministic fallbacks and do not make capture, save, or retrieval
+depend on model availability.
+
+## Continuing debt
 
 The generalized tag model currently coexists with legacy `Project` and
-`EntryType` fields. Journal filters, tidy suggestions, reports, and goals still
-depend on those legacy fields. Do not remove them until those consumers have
-been migrated and historical data has a tested conversion path.
+`EntryType` fields. Journal filters, tidy suggestions, reports, and legacy goals
+still depend on those fields. Do not remove them until those consumers have
+been migrated and historical data has a tested conversion path. The Goals
+rebuild above should not accidentally legitimize or extend the old Goals model.
 
 Some older screens still contain Hebrew copy despite the current LTR English
 direction. Treat that as explicit localization/design debt, not a reason to
