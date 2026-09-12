@@ -180,9 +180,20 @@ struct MentionCard: View {
         return tag.group?.emoji
     }
 
+    private var entryType: EntryType? {
+        guard tag.group?.systemKey == "entry-type",
+              let key = tag.legacyKey else { return nil }
+        return EntryType(rawValue: key)
+    }
+
     var body: some View {
         HStack(spacing: 6) {
-            if let icon, !icon.isEmpty {
+            if let entryType {
+                Image(systemName: EntryArtifact(type: entryType).symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 16)
+            } else if let icon, !icon.isEmpty {
                 Text(icon)
                     .font(.system(size: 12))
             }
