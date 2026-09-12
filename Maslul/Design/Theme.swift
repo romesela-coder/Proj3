@@ -41,6 +41,7 @@ enum Palette {
 
     // The one live accent — only for state that needs attention (spec §05.05)
     static let accent = Color(rgb: 0xC7FF32)
+    static let tagLemon = Color(rgb: 0xEEFFC7)
 
     // Entry-type tints
     static let win = Color(rgb: 0xE1F7DD)

@@ -300,14 +300,7 @@ private struct TagGroupDetailView: View {
 
     private func tagPill(_ tag: EntryTag) -> some View {
         Button { editingTag = tag } label: {
-            Text(tag.name)
-                .lineLimit(1)
-            .font(.bodyText(14, weight: .semibold))
-            .foregroundStyle(Palette.ink)
-            .padding(.horizontal, 15)
-            .frame(minHeight: 40)
-            .background(Capsule().fill(TagColorOption(rawValue: tag.colorRaw)?.color ?? Palette.neutralTile))
-            .overlay(Capsule().stroke(tag.colorRaw == "neutral" ? Palette.line : Color.clear, lineWidth: 1))
+            MentionCard(tag: tag)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Edit tag")

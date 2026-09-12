@@ -466,6 +466,7 @@ struct CaptureView: View {
         entry.sensitivity = isSensitive ? .sensitive : .normal
         entry.attachmentNames = attachmentNames
         entry.tags = selectedTags
+        entry.box = EntryBoxBootstrap.inbox(in: context)
         context.insert(entry)
         entry.isGeneratingTitle = true
         try? context.save()

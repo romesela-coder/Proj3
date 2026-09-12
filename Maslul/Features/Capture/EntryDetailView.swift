@@ -17,6 +17,7 @@ struct EntryDetailView: View {
 
     @State private var showProjectPicker = false
     @State private var showDatePicker = false
+    @State private var showBoxPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var selectedDetent: PresentationDetent = .fraction(0.68)
 
@@ -29,29 +30,48 @@ struct EntryDetailView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ZStack(alignment: .leading) {
-                        if entry.titleText.isEmpty {
-                            Text("Title")
-                                .font(.display(24))
-                                .foregroundStyle(Palette.line)
-                                .allowsHitTesting(false)
+                    HStack(alignment: .top, spacing: 14) {
+                        Button { showBoxPicker = true } label: {
+                            EntryBoxTile(box: entry.box, size: 52)
+                            .overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "arrow.left.arrow.right")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(Palette.ink)
+                                    .frame(width: 18, height: 18)
+                                    .background(Circle().fill(Palette.tagLemon))
+                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                    .offset(x: 3, y: 3)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Change entry box")
 
-                        TextField("", text: $entry.titleText)
-                            .font(.display(24))
-                            .foregroundStyle(Palette.ink)
-                            .textFieldStyle(.plain)
-                            .multilineTextAlignment(.leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            ZStack(alignment: .leading) {
+                                if entry.titleText.isEmpty {
+                                    Text("Title")
+                                        .font(.display(24))
+                                        .foregroundStyle(Palette.line)
+                                        .allowsHitTesting(false)
+                                }
+
+                                TextField("", text: $entry.titleText)
+                                    .font(.display(24))
+                                    .foregroundStyle(Palette.ink)
+                                    .textFieldStyle(.plain)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
+                            .onTapGesture { selectedDetent = .large }
+
+                            Text("\(Fmt.stamp(entry.createdAt)) · \(entry.box?.name ?? "Inbox")")
+                                .font(.bodyText(12.5))
+                                .foregroundStyle(Palette.meta)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .environment(\.layoutDirection, .leftToRight)
-                    .onTapGesture { selectedDetent = .large }
-
-                    Text(Fmt.stamp(entry.createdAt))
-                        .font(.bodyText(12.5))
-                        .foregroundStyle(Palette.meta)
-                        .padding(.top, 2)
-                        .padding(.bottom, 22)
+                    .padding(.bottom, 22)
 
                     bodyCard
                     actionRow
@@ -76,6 +96,14 @@ struct EntryDetailView: View {
         }
         .sheet(isPresented: $showDatePicker) {
             DatePickerSheet(date: $entry.createdAt)
+        }
+        .sheet(isPresented: $showBoxPicker) {
+            EntryBoxPicker(
+                selectedBox: Binding(
+                    get: { entry.box },
+                    set: { value in mutate { entry.box = value } }
+                )
+            )
         }
         .onChange(of: photoItems) { _, items in
             Task { await addAttachments(items) }

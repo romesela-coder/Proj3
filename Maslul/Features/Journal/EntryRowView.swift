@@ -6,10 +6,7 @@ struct EntryRowView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 7) {
-                EntryIconTile(
-                    artifact: EntryArtifact(type: entry.type),
-                    size: 44
-                )
+                EntryBoxTile(box: entry.box, size: 44)
                 Text(Fmt.dayDot(entry.createdAt))
                     .font(.utility(10))
                     .foregroundStyle(Palette.meta)
@@ -35,11 +32,12 @@ struct EntryRowView: View {
                 }
 
                 if entry.title != entry.body {
-                    Text(entry.body)
-                        .font(.bodyText(13.5))
-                        .foregroundStyle(Palette.meta)
-                        .lineLimit(1)
-                        .multilineTextAlignment(.leading)
+                    InlineMentionText(
+                        text: entry.body,
+                        tags: entry.tags,
+                        fontSize: 13.5,
+                        maximumNumberOfLines: 1
+                    )
                 }
 
                 if let project = entry.project {

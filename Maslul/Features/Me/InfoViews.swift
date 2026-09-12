@@ -284,23 +284,23 @@ struct RoadmapView: View {
     @Environment(\.dismiss) private var dismiss
 
     private let items: [(String, String, String)] = [
+        ("NEXT", "AI tag matching", "Snap confident matches in typed or dictated text to existing tags, and propose new ones."),
         ("0.2", "Monthly summaries", "Highlights, learning themes, and project patterns."),
-        ("0.2", "הכתבה קולית מקומית", "תמלול על המכשיר בלבד, בלי שליחה לשרת."),
-        ("0.2", "ווידג׳ט טאלי פרויקטים", "נגיעה מסמנת מעבר הקשר, בלי לפתוח את האפליקציה."),
-        ("1.0", "שורות קורות חיים", "פעולה → תוצאה → מדד, כטיוטה לצד הרשומה המקורית."),
-        ("1.0", "שאלה חופשית", "חיפוש סמנטי מקומי וסיכום בשתי שורות מעל התוצאות."),
-        ("1.0", "נעילה ב-Face ID", "נעילה בכניסה, נעילה מחדש אחרי 60 שניות ברקע."),
-        ("1.0", "גיבוי מוצפן", "ההחלטה הפתוחה הגדולה ביותר במסמך.")
+        ("0.2", "Project tally widget", "Mark a context switch without opening the app."),
+        ("1.0", "Résumé lines", "Turn an action, result, and metric into an editable draft."),
+        ("1.0", "Semantic search", "Ask a local question and summarize matching entries."),
+        ("1.0", "Face ID lock", "Lock on launch and again after time in the background."),
+        ("1.0", "Encrypted backup", "A recoverable backup without weakening the privacy model.")
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ScreenHeader(title: "מה עוד לא נבנה") { dismiss() }
+            ScreenHeader(title: "Planned") { dismiss() }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     CardBox {
-                        Text("This build covers capture, on-the-spot organization, weekly allocation, reports, goals versus reality, and export.")
+                        Text("This build includes typed and spoken capture, inline tags, weekly allocation, reports, goals versus reality, and export.")
                             .font(.bodyText(13.5))
                             .foregroundStyle(Palette.ink2)
                             .fixedSize(horizontal: false, vertical: true)

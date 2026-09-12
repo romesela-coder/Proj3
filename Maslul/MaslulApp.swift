@@ -18,7 +18,7 @@ struct MaslulApp: App {
                 allowsSave: true
             )
             container = try ModelContainer(
-                for: Entry.self, Project.self, Goal.self, TagGroup.self, EntryTag.self,
+                for: Entry.self, EntryBox.self, Project.self, Goal.self, TagGroup.self, EntryTag.self,
                 WeeklyAllocation.self, AllocationSlice.self,
                 configurations: configuration
             )

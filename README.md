@@ -1,162 +1,176 @@
 # מסלול · Maslul
 
-A career journal for iPhone. Local-only, no account, no network code.
+Maslul is a private, iPhone-first journal for capturing work, decisions,
+learning, friction, people, projects, and recurring themes. The current build
+is organized around a fast keyboard-first capture flow, reusable tags, inline
+mentions, and on-device assistance.
 
-This repository covers the **0.1 milestone plus the core of 0.2** of the product
-spec (`אפיון מסלול`, v0.3): capture, the weekly ritual (tidy + time allocation),
-the time-allocation report, goals versus reality, journal, and export.
+The app has no account, server, analytics, CloudKit container, third-party SDK,
+or application networking code. Journal data and attachments are stored in the
+app container. Export only happens when the user explicitly opens the system
+share sheet.
 
----
+## Run the app
 
-## Running it
+Open `Maslul.xcodeproj`, select the `Maslul` scheme, and run on an iPhone or
+simulator.
 
+```bash
+xcodebuild \
+  -project Maslul.xcodeproj \
+  -scheme Maslul \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  build
 ```
-open Maslul.xcodeproj
-```
 
-Pick any iPhone simulator and press ⌘R. Nothing else is required — no
-CocoaPods, no SPM packages, no signing team for the simulator.
+- Xcode 26.x is recommended. It compiles the iOS 26 Speech and Foundation
+  Models paths as well as the older-OS fallbacks.
+- Deployment target: iOS 17.0.
+- iPhone only, portrait only, light appearance.
+- No Swift Package Manager, CocoaPods, or other external dependencies.
+- Simulator builds do not need signing. A physical device needs a valid local
+  development team and provisioning profile.
+- The project uses a file-system synchronized `Maslul/` group, so new Swift
+  files do not need to be added to the target manually.
 
-- **Xcode 16** (project format `objectVersion = 77`, file-system synchronized groups)
-- **Deployment target: iOS 17.0**, so it runs on whatever simulator you already
-  have installed. Built against the iOS 18 SDK.
-- iPhone only, portrait only.
-- The target uses automatic signing with no team. Simulator builds are fine as
-  is; select a team in *Signing & Capabilities* only if you want to run on a
-  physical device.
+Microphone and speech-recognition permissions are requested only when the user
+starts dictation.
 
-Adding Swift files is just adding files — the target references the `Maslul/`
-folder itself, so nothing needs to be registered in the project.
+## What is implemented
 
-## What's in this build
+### Capture and entry editing
 
-**Stage 1 — capture**
+- A Calendar home view with a seven-day strip and per-day entries.
+- A parallel Boxes board that groups entries by their durable Box assignment
+  and presents each Box as a shelf of entry cards.
+- A large Calendar/Boxes toggle in the title row.
+- A compact composer attached to the keyboard instead of a blank creation
+  screen.
+- An adaptive multiline editor that grows to three lines and then scrolls.
+- Dictation from the same composer, using the active keyboard language.
+- Locally generated entry titles with a deterministic fallback.
+- A reading-first entry sheet with editable title and text, date, privacy,
+  tags, and local photo attachments.
+- A single Box assignment for every entry. The Box icon is the entry's leading
+  visual identity in Calendar and Journal.
+- New entries preserve the selected day while storing the real capture time;
+  they are no longer created at midnight.
+- Interactive keyboard dismissal and native-feeling sheet/navigation gestures.
+- Horizontal swipes on empty Calendar space move between days. Entry rows keep
+  their own native swipe-to-delete interaction.
 
-| Screen | Spec | |
-| --- | --- | --- |
-| Onboarding, 5 steps | F7 | ✅ |
-| Home — greeting, four tiles, search, pending counter | §05 | ✅ |
-| Quick capture, one required field, draft kept on exit | F1, US-A1/A3/A4 | ✅ |
-| Entry details — type, project, origin, effort, date, sensitivity, evidence | US-B2/B3 | ✅ |
+### Tags and mentions
 
-**Stage 2 — the weekly ritual**
+- Reusable `TagGroup` and `EntryTag` models for projects, people, entry types,
+  or any other user-defined category.
+- Default groups bootstrapped from the existing entry types and projects.
+- Minimal group/tag creation from a keyboard-height composer.
+- Globally unique, case- and diacritic-insensitive tag names, with a maximum of
+  50 characters.
+- Optional per-tag colors. Neutral tags share one soft lemon default tint.
+- Tag cards inherit one emoji from their group; the separate Box icon remains
+  the entry-level identity.
+- Type `@` while writing to find an existing tag or create a new one inside a
+  group.
+- Mentions render inline as colored tokens while their plain-text form remains
+  `@Tag name` in storage.
+- The first backspace detaches an inline mention but keeps its text; the next
+  backspace edits the characters normally.
+- The quick composer suggests up to five tags using text match, frequency, and
+  recency.
 
-| Screen | Spec | |
-| --- | --- | --- |
-| Tidy, card at a time, swipe or buttons, batches of 10 | F2, US-B1 | ✅ |
-| Closing summary and one data-derived question | F2 | ✅ |
-| Weekly allocation — sliders that hold 100, lock, note, skip | F3, US-G2 | ✅ |
-| Two-week backfill window, then closed permanently | §07 | ✅ |
-| Suggestions during tidy | §13 | ⚠️ keyword heuristic, not a model — see below |
+### Retrieval and reflection
 
-**Stage 3 — retrieval**
+- Journal search, date range, entry-type, and project filters.
+- A Box-based board alongside the date-based Calendar view.
+- Weekly tidy and time-allocation flows.
+- Time-allocation reports and goals-versus-reality views.
+- Markdown and JSON export, with sensitive entries excluded by default.
+- Weekly local reminders and sample data for testing.
 
-| Screen | Spec | |
-| --- | --- | --- |
-| Journal — full-text search, filters, month grouping | US-C3 | ✅ |
-| Time-allocation report — bands, origin split, notes, skipped weeks | §11, US-G4 | ✅ |
-| Goals versus reality, quarter open/close, carry a goal forward | §12, F6, US-D1/D2 | ✅ |
-| Markdown / JSON export, sensitive entries excluded by default | US-E3 | ✅ |
-| Time-report export with the self-report disclaimer | US-G4 | ✅ |
+### Deletion
 
-**Supporting:** projects as an entity with the 8-active ceiling (US-G1), weekly
-reminder with no streaks (US-F1/F2), local stats (§16), sample-data toggle.
+- Entries use recoverable deletion: a swipe moves them to Trash for 48 hours.
+- Trash supports restore and permanent deletion; expired entries are purged on
+  launch.
+- Tags, custom tag groups, projects, and attachments have direct delete
+  actions. Deleting a tag removes the relationship from entries, not the entry.
 
-Still missing, and listed in-app under *אני → מה עוד לא נבנה*: the review pack,
-voice dictation, résumé lines, semantic search, Face ID, encrypted backup, and
-the widget family.
+## Speech and local intelligence
 
-## Notable implementation decisions
+Dictation has two runtime paths:
 
-**No widgets in this drop.** §10 argues the widget family is why 0.1 might work
-at all, and I agree — but it needs a second target and an App Group with a
-shared SwiftData store, which is the most likely thing to fail to build on a
-machine I can't test on. The store layer is structured so they drop in without
-a rewrite. *אני → ווידג׳טים ונקודות כניסה* says this in the app rather than
-pretending the family exists.
+- On iOS 26, `SpeechAnalyzer` and `DictationTranscriber` use progressive
+  long-form dictation and finalize the last phrase before an entry is saved.
+- On older systems, `SFSpeechRecognizer` provides the compatible fallback.
 
-**No network code.** There is no `URLSession` call, no third-party SDK, and no
-analytics anywhere in the target, and no CloudKit configuration on the model
-container. §14 asks for a claim that can be verified: grepping `Maslul/` for
-`URLSession`, `https?://` or `CloudKit` matches only comments and one SF Symbol
-name (`network.slash`) — no networking API is called.
+The locale follows the current keyboard (`he-IL`, `en-US`, or the reported
+keyboard language). The app requests Speech assets through the system when a
+supported language is not already installed.
 
-**RTL is forced at the root** (`.environment(\.layoutDirection, .rightToLeft)`)
-rather than driven by the device language, so the layout matches the wireframes
-in a simulator set to English.
+The AI layer is optional and failure-safe:
 
-**Light only.** The spec defines one palette on a white ground and no dark
-variant, so the app pins `.preferredColorScheme(.light)` instead of inventing
-a dark palette.
+- `FoundationModelsSuggester` uses Apple's on-device model for tidy
+  classification when the device and OS support it.
+- `HeuristicSuggester` keeps the same workflow usable everywhere else.
+- `LocalMetadataGenerator` attempts on-device titles and group icons, then
+  falls back to deterministic extraction/mapping.
 
-**Filtering happens in memory,** not through `#Predicate`. The dataset is one
-person's journal, and SwiftData predicates over optional relationships cost
-more in bugs than they save here.
+Foundation Models language support is controlled by the OS. In particular,
+long Hebrew entries may use the deterministic title fallback even when Apple
+Intelligence is otherwise available.
 
-**Tidy suggestions use the on-device model where the device has one.** Two
-implementations sit behind the `Suggesting` protocol:
+## Data model and migration state
 
-- `FoundationModelsSuggester` — Apple's `SystemLanguageModel` (§13). A fresh
-  session per entry with a three-field structured output, on device only, no
-  Private Cloud Compute. The whole file is inside `#if canImport(FoundationModels)`
-  and `@available(iOS 26, *)`.
-- `HeuristicSuggester` — keyword matching, everywhere else.
+The SwiftData container currently includes:
 
-`SuggesterFactory.make()` picks at runtime. The tidy card shows the keyword
-result instantly, then swaps in the model's answer if one arrives and the user
-hasn't already corrected the field. A model failure mid-session is never worse
-than no model: the heuristic result is already in hand. The UI names which
-source it used, and *אני → מודל מקומי* explains why the model is off when it is.
+- `Entry`, `EntryBox`, `TagGroup`, `EntryTag`
+- `Project`, `Goal`
+- `WeeklyAllocation`, `AllocationSlice`
 
-**Consequence for toolchains:** on Xcode 16 the FoundationModels file compiles
-out entirely, so it is never type-checked there. It requires **Xcode 26** to
-build, and an iPhone 15 Pro or newer on iOS 26 with Apple Intelligence enabled
-to actually run.
+`TagGroup`/`EntryTag` are the new general classification model. The older
+`Project` relationship and `EntryType` raw field deliberately remain during a
+staged migration because reports, tidy suggestions, goals, and historical data
+still use them. `TagBootstrap` mirrors valid legacy projects and entry types
+into system tag groups without creating duplicate tags.
 
-**Report bands use a neutral grey ramp, not the pastels.** The six tints in §05
-are bound to entry *types*; reusing them for projects would make the same colour
-mean two different things. The wireframe's greyscale is correct here for a
-reason the wireframe didn't intend.
+Before clearing a development install after a schema problem, export any data
+you want to keep. There is no automatic backup.
 
-**Goals show share of records, not share of effort.** The wireframe says
-"31% מהמאמץ", but §07 makes the weekly allocation the only source of truth about
-time, and goals link to entries rather than projects. The label says
-"מהרשומות" so the number doesn't claim more than it knows.
+## Project layout
 
-**Nothing is deleted.** Per §03.04 there is no delete action on an entry —
-entries are editable instead. The one exception is the sample-data toggle,
-which wipes everything; it is labelled as a test affordance.
-
-**Attachments** use `PhotosPicker`, so the app needs no permission strings at
-all. Camera capture would require `NSCameraUsageDescription` and is left out.
-Files are re-encoded to JPEG and copied into the app container.
-
-**Colour comes from the spec, not the wireframes.** The wireframes are
-deliberately greyscale; §05 defines the six pastel tints and the single
-orange-red accent, which is what the tiles and the pending badge use.
-
-## Layout
-
-```
+```text
 Maslul/
-  MaslulApp.swift          model container, RTL root, reminder sync
-  Navigation/              Router, RootView, floating dock
-  Design/                  colour tokens, metrics, type, Hebrew formatting, components
-  Model/                   Entry, Project, and the enums behind them
-  Data/                    settings keys, attachment store, sample data
-  Services/                exporter, reminder scheduler
-  Features/                Onboarding, Home, Capture, Journal, Projects, Me
+  MaslulApp.swift          SwiftData container and application environment
+  Navigation/              Router, root stacks, sheets, floating dock
+  Design/                  Theme, shared components, inline mention editor
+  Model/                   Entries, tags, projects, goals, allocations
+  Data/                    Settings, attachments, sample data, allocation math
+  Services/                Dictation, local AI, export, reminders
+  Features/
+    Home/                  Calendar, Boxes board, and quick capture
+    Capture/               Full capture and entry detail
+    Tags/                  Tag groups, tags, colors, deletion
+    Journal/               Search and filters
+    Ritual/                Weekly tidy and allocation
+    Reports/               Time-allocation reporting
+    Goals/                 Quarterly goals and close flow
+    Projects/              Legacy project management
+    Me/                    Settings, privacy, export, trash
+    Onboarding/            First-run flow
 ```
 
-## Known caveats
+## Known gaps
 
-Written without a Mac in the loop — the 0.1 milestone was verified to build and
-run by hand, but the 0.2 work in this pass has not been compiled. The API
-surface is kept conservative on purpose (SwiftUI + SwiftData, no exotic
-modifiers).
-
-**The schema changed** in this pass: `Goal`, `WeeklyAllocation` and
-`AllocationSlice` are new, and `Entry` gained an optional `goal` relationship.
-SwiftData should migrate this automatically, but if the app crashes on launch
-against a store created by the previous build, delete the app from the
-simulator and run again.
+- AI-assisted tag snapping after typing or dictation is not implemented yet;
+  the current mention flow is explicit and the suggestion row is ranked
+  locally.
+- Tags and legacy project/type fields are not yet one unified reporting model.
+- The Boxes board is intentionally a lightweight overview today. Board search,
+  ordering, drag-and-drop filing, and Box-specific actions are not implemented.
+- Semantic search, monthly summaries, résumé-line drafting, widgets/App
+  Intents, Face ID lock, and encrypted backup are not implemented.
+- The app shell and new capture/tag surfaces are LTR English. Some older
+  settings, reports, ritual, and onboarding copy is still Hebrew and should be
+  migrated separately.

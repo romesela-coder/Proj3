@@ -1,119 +1,188 @@
-# מסלול · Maslul — project context
+# Maslul project context
 
-A career journal for iPhone, built from a Hebrew product spec (`אפיון מסלול`,
-v0.3) and an 18-artboard wireframe canvas. Single user, single device.
+Maslul is a private, single-user career and memory journal for iPhone. It is a
+local-first SwiftUI/SwiftData app with fast capture, reusable tags, inline
+mentions, dictation, weekly reflection, reports, goals, and export.
 
-**Read `HANDOFF.md` first** — it holds the point-in-time state, what has and
-hasn't been compiled, and the current task. This file is the durable context.
+Read `README.md` for the product and build overview, and `HANDOFF.md` for the
+current implementation state and regression checklist. Follow the repository's
+applicable `AGENTS.md` instructions for GitHub account separation and workflow.
 
-## Hard constraints — do not relax these without asking
+## Product constraints
 
-These come from the product spec and are not style preferences.
+Do not relax these without asking the user:
 
-1. **No network code, ever.** No `URLSession`, no third-party SDK, no
-   analytics, no CloudKit on the model container. §14 asks for a claim the user
-   can verify by grepping. Keep it true.
-2. **No account, no server, no sign-in.** Not now, not as a "future hook".
-3. **Nothing is deleted.** There is deliberately no delete action on an entry
-   (§03.04); entries are editable instead. The only exception is the
-   sample-data toggle, which is labelled a test affordance.
-4. **No streaks, no guilt.** A missed week is a missed week. No red states, no
-   "you missed", no daily reminders — one weekly reminder, two maximum (§03.06).
-5. **No entry text in any widget**, if widgets are ever added (§10). Counters,
-   project names and labels only.
-6. **On-device AI only.** No Private Cloud Compute, no external provider, even
-   where the API allows it. This is a product decision, not a technical limit.
+1. No account, server, analytics, CloudKit model container, third-party SDK, or
+   application networking code.
+2. Journal data and attachments stay in the app container. Export is an
+   explicit user action through the system share sheet.
+3. AI must be on device and optional. Every AI-assisted path needs a useful
+   deterministic or heuristic fallback.
+4. Entries use recoverable deletion: Trash for 48 hours, then purge. Directly
+   deleting a tag or group must never delete an entry.
+5. No streaks, guilt states, or daily nagging. The product has one weekly
+   reminder flow.
+6. Future widgets must never expose entry text—only counters, tag/project names,
+   and non-sensitive labels.
+7. The application root is LTR and uses an English locale. Hebrew input is
+   supported, but must not flip the application chrome or placeholder layout.
 
 ## Build
 
-- **Xcode 26.4**, iOS SDK 26.4. Deployment target **iOS 17.0**, built against
-  the newer SDK on purpose so it runs on older simulators.
-- One target, one scheme, iPhone-only, portrait-only. No SPM packages, no
-  CocoaPods. Simulator builds need no signing team.
-- The target references the `Maslul/` folder via a file-system synchronized
-  group (`objectVersion = 77`), so **adding a Swift file is just adding a file**
-  — nothing to register in the project.
+- Xcode 26.x recommended; iOS 17.0 deployment target.
+- One iPhone-only, portrait-only target and scheme: `Maslul`.
+- SwiftUI + SwiftData, no package dependencies.
+- File-system synchronized Xcode group: adding a Swift file under `Maslul/` is
+  enough.
+- Physical-device builds require microphone and speech-recognition usage
+  descriptions, which are already configured in the project.
 
 ```bash
-xcodebuild -scheme Maslul -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+xcodebuild \
+  -project Maslul.xcodeproj \
+  -scheme Maslul \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  build
 ```
 
-## Layout
+## Data model
 
-```
+`Entry` is the central record. Its only required user input is body text. It
+also stores an editable title, timestamps, optional legacy type/project/effort,
+privacy, attachments, an optional goal, Trash state, and a many-to-many tag
+relationship. Every entry also belongs to one `EntryBox`; Inbox is assigned to
+new and migrated entries by default.
+
+`EntryBox` is the durable filing axis used by the Boxes board. Its icon belongs
+to the Box, not to each entry. Calendar and Journal show that Box icon as the
+entry's leading visual identity. `EntryBoxBootstrap` creates Inbox and assigns
+it to migrated entries that do not yet have a Box.
+
+`TagGroup` is a user-defined namespace such as Projects, People, or Entry type.
+`EntryTag` is the selectable item inside a group. Important rules:
+
+- names are trimmed and limited to 50 characters;
+- names are globally unique using case- and diacritic-insensitive comparison;
+- groups may be single- or multiple-selection;
+- tags may have an optional color;
+- deleting a group cascades to its tags, while tag-to-entry relationships use
+  nullification so entries survive.
+
+`TagBootstrap` creates system groups from the legacy `EntryType` cases and
+`Project` records. This is a staged migration. Do not remove `Entry.type`,
+`Entry.project`, or `Project` until Journal, tidy, reports, goals, sample data,
+and export have all moved to tags and a historical-data migration is tested.
+
+SwiftData views generally fetch a small sorted set with `@Query` and filter in
+memory. Keep relationship mutation on the main actor and normally set one side
+of a relationship, allowing SwiftData's inverse to maintain the other.
+
+## Mentions
+
+`InlineMentionEditor` is a `UITextView` bridge. A selected tag renders as an
+`NSTextAttachment`, while the persisted body remains readable plain text:
+`@Tag name`.
+
+The contract is:
+
+- `Entry.tags` is the source of mention identity;
+- the body is the portable/exportable text representation;
+- mention matching requires a valid boundary and prefers longer tag names;
+- the first deletion converts a token to ordinary name text and removes its tag
+  relationship; a subsequent deletion edits text normally;
+- `@` opens local search and may create a missing tag inside a selected group;
+- duplicate prevention is global, not per group.
+
+Keep the editor, tag relationship, export format, and rename behavior aligned
+when modifying mentions.
+
+## Dictation
+
+`SpeechDictationController` selects a locale from the active keyboard.
+
+- iOS 26 uses `SpeechAnalyzer` + `DictationTranscriber` with
+  `.progressiveLongDictation`, installed Speech assets, continuous final and
+  volatile transcripts, and audio-format conversion when needed.
+- Earlier iOS versions use `SFSpeechRecognizer` with partial results and the
+  on-device option when the recognizer reports support.
+
+Finalized transcript text must only grow. Volatile text may be revised by the
+recognizer, but it must not replace prior finalized phrases. Saving while
+recording must await `stopAndWait()` before reading the final body or starting
+title generation.
+
+## Local intelligence
+
+There are two related but separate paths:
+
+- `Suggesting` classifies entries for the tidy flow. It uses
+  `FoundationModelsSuggester` when Apple's on-device model is available and
+  `HeuristicSuggester` otherwise.
+- `LocalMetadataGenerator` creates titles and group icons opportunistically,
+  then falls back to deterministic extraction/mapping.
+
+Never make save, navigation, tagging, or retrieval wait on model availability.
+Foundation Models language support is OS-controlled; Hebrew title generation
+can legitimately fall back even on an otherwise eligible device.
+
+AI tag snapping is not implemented yet. Current tag suggestions are local,
+deterministic rankings based on text match, usage count, and recency.
+
+## UI and interaction conventions
+
+- Root layout direction is LTR, regardless of keyboard language.
+- New-item flows should use the compact keyboard-height composer rather than a
+  mostly empty full-screen form.
+- Calendar and Boxes are sibling modes in `HomeView`, selected by the large
+  toggle top-aligned with the title. Calendar is date-oriented; Boxes groups
+  the same entries into Box shelves.
+- Horizontal day navigation starts only on empty Calendar space. Never attach
+  a day-changing gesture to an entry row because rows use native trailing
+  swipe actions for deletion.
+- Quick capture must preserve the selected calendar day while applying the
+  current clock time. Do not construct new quick entries from a start-of-day
+  value directly.
+- Entry detail is a draggable partial sheet that can expand to full height.
+- Use the shared tokens in `Design/Theme.swift`; do not hardcode colors or
+  motion curves.
+- Tags without a chosen color use one consistent default mention tint. Custom
+  colors must look the same in suggestion cards and inline mentions.
+- Box icons and tag-group emoji have separate jobs: one editable SF Symbol
+  represents the entry's Box, while each tag card inherits the single emoji of
+  its group.
+- Lists use native trailing swipe actions for destructive actions. A revealed
+  destructive action is the confirmation unless the operation is materially
+  broader than the row.
+- Prefer native interactive dismissal and synchronized keyboard movement.
+- The desired application language is English. Some legacy Hebrew strings
+  remain and should be converted deliberately without changing the direction.
+
+## Privacy and deletion details
+
+- `PhotosPicker` imports images, re-encodes them, and stores them locally.
+- Dictation uses Apple's system Speech frameworks and explicit microphone and
+  speech permissions; the app has no speech server of its own.
+- Sensitive entries are excluded from export and summaries by default.
+- Entry swipe deletion sets `trashedAt`; `RootView` purges entries older than
+  48 hours. Trash can restore or permanently delete them earlier.
+- Sample-data clearing is a test-only destructive affordance.
+
+## Project layout
+
+```text
 Maslul/
-  MaslulApp.swift          model container, forced RTL root, reminder sync
-  Navigation/              Router (@Observable), RootView, floating dock
-  Design/                  colour tokens, metrics, type, Hebrew formatting, components
-  Model/                   Entry, Project, Goal (+Quarter), WeeklyAllocation, enums
-  Data/                    settings keys, attachment store, sample data, allocation math
-  Services/                exporter, reminder scheduler, suggesters, weekly insight
-  Features/                Onboarding, Home, Capture, Journal, Ritual, Reports, Goals, Me
+  Navigation/  root tabs, routes, sheets, floating dock
+  Design/      theme, components, mention editor and visuals
+  Model/       entry, tags, projects, goals, allocations
+  Data/        settings, attachments, sample data, allocation math
+  Services/    dictation, local intelligence, export, reminders
+  Features/    Home (Calendar, Boxes board, quick capture), Capture, Tags,
+               Journal, Ritual, Reports, Goals, Projects, Me, Onboarding
 ```
-
-The product is a three-stage loop, and the folder names follow it:
-**לתפוס** (Capture) → **לסדר** (Ritual) → **לשלוף** (Journal, Reports, Goals).
-
-## Conventions in this codebase
-
-- **Filter in memory, not with `#Predicate`.** The dataset is one person's
-  journal. SwiftData predicates over optional relationships cost more in bugs
-  than they save here. `@Query` fetches sorted, views filter in Swift.
-- **Enums are stored as raw `String`** on the models, with computed properties
-  exposing the enum. Keeps predicates and migrations simple.
-- **Set one side of a SwiftData relationship**, the to-one side, and let the
-  inverse maintain itself. Setting both duplicates children.
-- **Hebrew UI strings are inline in the views.** There is no localisation
-  infrastructure and none is wanted — the product is Hebrew-only.
-- **RTL is forced at the root** (`.environment(\.layoutDirection, .rightToLeft)`)
-  rather than following device language, so layout matches the wireframes on
-  any simulator. Consequence: `offset(x:)` and `position(x:)` are **not**
-  mirrored by SwiftUI — hand-built sliders and bars compute geometry
-  explicitly. See `PercentSlider` in `AllocationView.swift`.
-- **Light only.** The spec defines one palette on a white ground and no dark
-  variant, so the app pins `.preferredColorScheme(.light)`.
-
-## Design language (spec §05)
-
-- **Colour comes from the spec, not the wireframes.** The artboards are
-  deliberately greyscale. The real palette is six low-saturation tints bound to
-  the six **entry types**, plus one live accent `#FF5C3A` used *only* for state
-  that needs attention. Never use a type tint to mean something else — the
-  report bands use a neutral grey ramp for exactly this reason.
-- Radii: tile 20, card 16, pills fully rounded. No sharp corners anywhere.
-- 8pt base spacing, 20pt horizontal margins, 12pt between tiles.
-- One spring for the whole app: `response 0.35, damping 0.85` (`Motion.spring`).
-- Thin monoline SF Symbols against very heavy type — that contrast is the
-  entire personality. No illustrations, no emoji.
-- Navigation and the write button live in floating black pills at the bottom,
-  not a tab bar.
-
-All tokens are in `Design/Theme.swift`. Use them; do not hardcode colours.
-
-## The AI layer
-
-`Suggesting` (async, `@MainActor`) has two implementations:
-
-- `FoundationModelsSuggester` — Apple's on-device `SystemLanguageModel`. The
-  whole file is inside `#if canImport(FoundationModels)` **and**
-  `@available(iOS 26, *)`. A fresh session per entry with a three-field
-  structured output; the context window is small and feeding it more lowers
-  quality rather than raising it.
-- `HeuristicSuggester` — keyword matching. The fallback the spec requires.
-
-`SuggesterFactory.make()` picks at runtime. **Every retrieval surface must stay
-fully usable with no model at all** (§13) — that is a requirement, not a nicety.
-A model failure must never be worse than no model.
 
 ## Git
 
-Work on `claude/cloud-vs-local-9w7808`. It is also the repository's default
-branch — the repo was empty when the project was first pushed, and the user
-chose to leave it that way. There is no PR.
-
-End commit messages with:
-
-```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01JSq7MjaPdq3HArQYYcAXhs
-```
+Do not hardcode a long-lived working branch or historical co-author footer in
+this file. Inspect the current branch and follow the active `AGENTS.md` GitHub
+authentication rules before repository or GitHub work.

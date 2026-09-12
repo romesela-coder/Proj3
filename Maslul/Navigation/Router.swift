@@ -66,7 +66,7 @@ final class Router {
         sheet = .allocation
     }
 
-    func openProjects() {
+    func openTags() {
         tab = .me
         mePath = [.tags]
     }

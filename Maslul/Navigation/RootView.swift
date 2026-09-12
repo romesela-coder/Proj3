@@ -29,6 +29,7 @@ struct RootView: View {
             }
         }
         .task {
+            EntryBoxBootstrap.ensureDefaults(in: context)
             purgeExpiredTrash()
         }
     }
@@ -93,7 +94,7 @@ struct DockBar: View {
     var composeAction: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .bottom, spacing: 12) {
             HStack(spacing: 2) {
                 segment(.journal)
                 segment(.me)
@@ -104,24 +105,46 @@ struct DockBar: View {
             if showsCompose {
                 Spacer(minLength: 8)
 
-                Button {
-                    if let composeAction {
-                        composeAction()
-                    } else {
-                        router.newEntry()
+                VStack(spacing: 8) {
+                    Button {
+                        withAnimation(Motion.spring) {
+                            router.openTags()
+                        }
+                    } label: {
+                        Circle()
+                            .fill(Palette.ground)
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "tag")
+                                    .font(.system(size: 19, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                            )
+                            .overlay(
+                                Circle().stroke(Palette.line, lineWidth: 1)
+                            )
                     }
-                } label: {
-                    Circle()
-                        .fill(Palette.control)
-                        .frame(width: 60, height: 60)
-                        .overlay(
-                            Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundStyle(Color.white)
-                        )
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Tags")
+
+                    Button {
+                        if let composeAction {
+                            composeAction()
+                        } else {
+                            router.newEntry()
+                        }
+                    } label: {
+                        Circle()
+                            .fill(Palette.control)
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 24, weight: .medium))
+                                    .foregroundStyle(Color.white)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("New entry")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("New entry")
             } else {
                 Spacer(minLength: 0)
             }

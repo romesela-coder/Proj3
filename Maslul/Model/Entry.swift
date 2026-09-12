@@ -18,6 +18,10 @@ final class Entry {
     /// Ephemeral UI state while the local model replaces the fallback title.
     @Transient var isGeneratingTitle = false
 
+    /// Optional user override for the leading SF Symbol shown in entry lists.
+    /// Nil keeps the icon derived from the legacy entry type.
+    var iconSymbol: String?
+
     /// Classification is optional. The user or the local model can set it while
     /// writing, and it remains editable later.
     var typeRaw: String?
@@ -34,6 +38,7 @@ final class Entry {
     var attachmentNames: [String] = []
 
     var project: Project?
+    var box: EntryBox?
 
     @Relationship(deleteRule: .nullify, inverse: \EntryTag.entries)
     var tags: [EntryTag] = []
@@ -53,8 +58,10 @@ final class Entry {
         self.createdAt = createdAt
         self.updatedAt = createdAt
         self.trashedAt = nil
+        self.iconSymbol = nil
         self.typeRaw = type?.rawValue
         self.project = project
+        self.box = nil
         self.tags = []
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []

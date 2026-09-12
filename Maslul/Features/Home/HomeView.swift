@@ -5,6 +5,11 @@ import UIKit
 /// One clear entry point for capture. Classification belongs inside the entry,
 /// while the home screen answers what needs attention next.
 struct HomeView: View {
+    private enum ViewMode {
+        case calendar
+        case boxes
+    }
+
     @Environment(Router.self) private var router
     @Environment(\.modelContext) private var context
     @AppStorage(SettingsKey.userName) private var userName = ""
@@ -15,10 +20,17 @@ struct HomeView: View {
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
 
+    @Query(sort: \EntryBox.createdAt, order: .forward)
+    private var boxes: [EntryBox]
+
     @State private var selectedDate = Calendar.current.startOfDay(for: .now)
     @State private var isQuickCapturePresented = false
     @State private var quickText = ""
     @State private var quickTags: [EntryTag] = []
+    @State private var quickBox: EntryBox?
+    @State private var viewMode: ViewMode = .calendar
+    @State private var weekAnchorDate = Calendar.current.startOfDay(for: .now)
+    @State private var calendarEntryRowFrames: [CGRect] = []
 
     private var calendar: Calendar { Calendar.current }
 
@@ -27,7 +39,7 @@ struct HomeView: View {
     }
 
     private var week: [Date] {
-        (-3...3).compactMap { calendar.date(byAdding: .day, value: $0, to: .now) }
+        (-3...3).compactMap { calendar.date(byAdding: .day, value: $0, to: weekAnchorDate) }
     }
 
     private var canWriteOnSelectedDay: Bool {
@@ -37,15 +49,39 @@ struct HomeView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
-                header
-
-                VStack(alignment: .leading, spacing: 0) {
-                    dayTitle
-                    dayStrip
-                    dayFeed
+                if viewMode == .calendar {
+                    VStack(alignment: .leading, spacing: 0) {
+                        modeHeading(
+                            title: calendar.isDateInToday(selectedDate)
+                                ? "Today"
+                                : Fmt.weekday(calendar.component(.weekday, from: selectedDate)),
+                            subtitle: calendar.isDateInToday(selectedDate)
+                                ? "What happened today?"
+                                : Fmt.longDate(selectedDate)
+                        )
+                        dayStrip
+                        dayFeed
+                    }
+                    .padding(.horizontal, Metrics.hMargin)
+                    .padding(.top, 30)
+                    .coordinateSpace(name: "home-calendar")
+                    .onPreferenceChange(CalendarEntryRowFramesKey.self) { frames in
+                        calendarEntryRowFrames = frames
+                    }
+                    .simultaneousGesture(daySwipeGesture)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        modeHeading(
+                            title: "Boxes",
+                            subtitle: "Everything, where it belongs."
+                        )
+                            .padding(.horizontal, Metrics.hMargin)
+                        BoxesBoardView(boxes: boxes, entries: entries) { entry in
+                            router.open(entry)
+                        }
+                    }
+                    .padding(.top, 30)
                 }
-                .padding(.horizontal, Metrics.hMargin)
-                .padding(.top, 18)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
@@ -53,6 +89,7 @@ struct HomeView: View {
                 QuickCaptureBar(
                     text: $quickText,
                     selectedTags: $quickTags,
+                    selectedBox: $quickBox,
                     availableTags: availableTags,
                     suggestedTags: suggestedTags,
                     save: saveQuickEntry,
@@ -60,6 +97,7 @@ struct HomeView: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .screenBackground()
@@ -74,34 +112,72 @@ struct HomeView: View {
 
     // MARK: - Pieces
 
-    private var header: some View {
-        HStack {
-            Button {
-                router.tab = .me
-                router.mePath = [.privacy]
-            }
-            label: {
-                Text("?")
-                    .font(.system(size: 21, weight: .regular))
-                    .foregroundStyle(Palette.muted)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Palette.neutralTile))
-            }
-            .buttonStyle(.plain)
-            Spacer()
+    private func viewModeButton(_ mode: ViewMode, symbol: String) -> some View {
+        let isSelected = viewMode == mode
+        return Button {
+            withAnimation(Motion.spring) { viewMode = mode }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.white : Palette.muted)
+                .frame(width: 46, height: 40)
+                .background(Capsule().fill(isSelected ? Palette.control : Color.clear))
         }
-        .padding(.horizontal, Metrics.hMargin)
-        .padding(.top, 14)
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode == .calendar ? "Calendar view" : "Boxes view")
     }
 
-    private var dayTitle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(calendar.isDateInToday(selectedDate) ? "Today" : Fmt.weekday(calendar.component(.weekday, from: selectedDate)))
-                .font(.display(34))
-                .displayTracking(34)
-            Text(calendar.isDateInToday(selectedDate) ? "What happened today?" : Fmt.longDate(selectedDate))
-                .font(.bodyText(15.5))
-                .foregroundStyle(Palette.meta)
+    private func modeHeading(title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.display(34))
+                    .displayTracking(34)
+                Text(subtitle)
+                    .font(.bodyText(15.5))
+                    .foregroundStyle(Palette.meta)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 2) {
+                viewModeButton(.calendar, symbol: "calendar")
+                viewModeButton(.boxes, symbol: "square.grid.2x2")
+            }
+            .padding(4)
+            .background(Capsule().fill(Palette.neutralTile))
+            .padding(.top, 1)
+        }
+    }
+
+    private var daySwipeGesture: some Gesture {
+        DragGesture(
+            minimumDistance: 36,
+            coordinateSpace: .named("home-calendar")
+        )
+            .onEnded { value in
+                let horizontal = value.translation.width
+                guard abs(horizontal) > abs(value.translation.height),
+                      abs(horizontal) > 54 else { return }
+
+                // Keep drags that start on an entry available for that row's
+                // native actions. Any other horizontal drag changes the day.
+                guard selectedEntries.isEmpty || !calendarEntryRowFrames.isEmpty else { return }
+                guard !calendarEntryRowFrames.contains(where: {
+                    $0.insetBy(dx: -8, dy: -8).contains(value.startLocation)
+                }) else { return }
+                moveSelectedDay(by: horizontal < 0 ? 1 : -1)
+            }
+    }
+
+    private func moveSelectedDay(by offset: Int) {
+        guard let next = calendar.date(byAdding: .day, value: offset, to: selectedDate) else { return }
+        withAnimation(Motion.spring) {
+            selectedDate = calendar.startOfDay(for: next)
+            if let first = week.first, let last = week.last,
+               next < first || next > last {
+                weekAnchorDate = calendar.startOfDay(for: next)
+            }
         }
     }
 
@@ -165,7 +241,17 @@ struct HomeView: View {
                     .journalListRow()
             } else {
                 ForEach(selectedEntries) { entry in
-                    Button { router.open(entry) } label: { TodayEntryRow(entry: entry) }
+                    Button { router.open(entry) } label: {
+                        TodayEntryRow(entry: entry)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: CalendarEntryRowFramesKey.self,
+                                        value: [proxy.frame(in: .named("home-calendar"))]
+                                    )
+                                }
+                            )
+                    }
                         .buttonStyle(.plain)
                         .journalListRow()
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -199,6 +285,7 @@ struct HomeView: View {
     }
 
     private func presentQuickCapture() {
+        quickBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
         withAnimation(Motion.spring) { isQuickCapturePresented = true }
     }
 
@@ -224,8 +311,9 @@ struct HomeView: View {
     private func saveQuickEntry() {
         let body = quickText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
-        let entry = Entry(body: body, createdAt: selectedDate)
+        let entry = Entry(body: body, createdAt: timestamp(on: selectedDate))
         entry.tags = quickTags
+        entry.box = quickBox ?? EntryBoxBootstrap.inbox(in: context)
         let initialTitle = entry.titleText
         entry.isGeneratingTitle = true
         context.insert(entry)
@@ -246,7 +334,21 @@ struct HomeView: View {
         }
         quickText = ""
         quickTags = []
+        quickBox = nil
         dismissQuickCapture()
+    }
+
+    private func timestamp(on day: Date) -> Date {
+        if calendar.isDateInToday(day) { return .now }
+
+        let now = Date.now
+        let time = calendar.dateComponents([.hour, .minute, .second], from: now)
+        return calendar.date(
+            bySettingHour: time.hour ?? 0,
+            minute: time.minute ?? 0,
+            second: time.second ?? 0,
+            of: day
+        ) ?? day
     }
 
     private var suggestedTags: [EntryTag] {
@@ -286,7 +388,7 @@ private struct TodayEntryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(spacing: 9) {
-                EntryIconTile(artifact: EntryArtifact(type: entry.type), size: 48)
+                EntryBoxTile(box: entry.box, size: 48)
                 Text(Fmt.time(entry.createdAt))
                     .font(.utility(11.5))
                     .foregroundStyle(Palette.meta)
@@ -301,20 +403,14 @@ private struct TodayEntryRow: View {
                     .multilineTextAlignment(.leading)
 
                 if entry.title != entry.body {
-                    Text(entry.body)
-                        .font(.bodyText(14.5))
-                        .foregroundStyle(Palette.meta)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                    InlineMentionText(
+                        text: entry.body,
+                        tags: entry.tags,
+                        fontSize: 14.5,
+                        maximumNumberOfLines: 2
+                    )
                 }
 
-                Text(entry.tags.first?.name.uppercased() ?? entry.type?.latin ?? "NOTE")
-                    .font(.utility(10.5))
-                    .tracking(1.1)
-                    .foregroundStyle(Palette.ink2)
-                    .padding(.horizontal, 11)
-                    .frame(height: 28)
-                    .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -326,9 +422,18 @@ private struct TodayEntryRow: View {
     }
 }
 
+private struct CalendarEntryRowFramesKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 private struct QuickCaptureBar: View {
     @Binding var text: String
     @Binding var selectedTags: [EntryTag]
+    @Binding var selectedBox: EntryBox?
     let availableTags: [EntryTag]
     let suggestedTags: [EntryTag]
     let save: () -> Void
@@ -338,10 +443,11 @@ private struct QuickCaptureBar: View {
     @State private var inputLanguage: String?
     @State private var editorHeight: CGFloat = 44
     @State private var isSubmitting = false
+    @State private var showBoxPicker = false
     @StateObject private var dictation = SpeechDictationController()
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack(alignment: .bottom, spacing: 10) {
                 InlineMentionEditor(
                     text: $text,
@@ -394,7 +500,7 @@ private struct QuickCaptureBar: View {
 
             TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
 
-            suggestedTagRow
+            composerAccessoryRow
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
@@ -421,6 +527,9 @@ private struct QuickCaptureBar: View {
                 }
         )
         .onDisappear { dictation.stop() }
+        .sheet(isPresented: $showBoxPicker) {
+            EntryBoxPicker(selectedBox: $selectedBox)
+        }
         .alert("Dictation unavailable", isPresented: Binding(
             get: { dictation.errorMessage != nil },
             set: { if !$0 { dictation.clearError() } }
@@ -431,23 +540,34 @@ private struct QuickCaptureBar: View {
         }
     }
 
-    @ViewBuilder
-    private var suggestedTagRow: some View {
+    private var composerAccessoryRow: some View {
         let visible = suggestedTags.filter { candidate in
             !selectedTags.contains { $0.persistentModelID == candidate.persistentModelID }
         }
-        if !visible.isEmpty, MentionText.query(in: text) == nil {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                Button { showBoxPicker = true } label: {
+                    EntryBoxChip(box: selectedBox)
+                }
+                .buttonStyle(.plain)
+
+                if !visible.isEmpty, MentionText.query(in: text) == nil {
+                    Rectangle()
+                        .fill(Palette.line)
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 2)
+
                     ForEach(visible) { tag in
                         Button { insertSuggested(tag) } label: {
                             MentionCard(tag: tag)
                         }
                         .buttonStyle(.plain)
                     }
-                }
+                    }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func submit() {
