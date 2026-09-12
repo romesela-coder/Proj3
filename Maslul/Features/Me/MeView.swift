@@ -116,6 +116,15 @@ struct MeView: View {
                 }
                 .buttonStyle(.plain)
 
+                Button { router.mePath.append(.tags) } label: {
+                    SettingRow(
+                        symbol: "tag",
+                        title: "Tags",
+                        subtitle: "Groups, people, projects, and more"
+                    )
+                }
+                .buttonStyle(.plain)
+
                 Button { router.mePath.append(.entryPoints) } label: {
                     SettingRow(
                         symbol: "square.grid.2x2",

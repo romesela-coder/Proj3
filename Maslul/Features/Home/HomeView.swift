@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// One clear entry point for capture. Classification belongs inside the entry,
 /// while the home screen answers what needs attention next.
@@ -11,17 +12,13 @@ struct HomeView: View {
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var entries: [Entry]
 
-    @Query(sort: \Project.createdAt, order: .forward)
-    private var projects: [Project]
+    @Query(sort: \EntryTag.name, order: .forward)
+    private var availableTags: [EntryTag]
 
     @State private var selectedDate = Calendar.current.startOfDay(for: .now)
     @State private var isQuickCapturePresented = false
     @State private var quickText = ""
-    @State private var quickType: EntryType?
-    @State private var quickProject: Project?
-
-    @AppStorage(SettingsKey.draftBody) private var draftBody = ""
-    @AppStorage(SettingsKey.draftType) private var draftType = ""
+    @State private var quickTags: [EntryTag] = []
 
     private var calendar: Calendar { Calendar.current }
 
@@ -55,12 +52,11 @@ struct HomeView: View {
             if isQuickCapturePresented {
                 QuickCaptureBar(
                     text: $quickText,
-                    type: $quickType,
-                    project: $quickProject,
-                    projects: projects.filter(\.isSelectable),
+                    selectedTags: $quickTags,
+                    availableTags: availableTags,
+                    suggestedTags: suggestedTags,
                     save: saveQuickEntry,
-                    expand: expandQuickCapture,
-                    dismiss: dismissQuickCapture
+                    dismiss: dismissQuickCaptureInteractively
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -175,10 +171,26 @@ struct HomeView: View {
         withAnimation(.easeOut(duration: 0.2)) { isQuickCapturePresented = false }
     }
 
+    private func dismissQuickCaptureInteractively() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+
+        // Keep the composer alive while it follows the keyboard's own dismissal
+        // animation. Removing it first creates a visible two-step jump.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            isQuickCapturePresented = false
+        }
+    }
+
     private func saveQuickEntry() {
         let body = quickText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
-        let entry = Entry(body: body, createdAt: selectedDate, type: quickType, project: quickProject)
+        let entry = Entry(body: body, createdAt: selectedDate)
+        entry.tags = quickTags
         let initialTitle = entry.titleText
         entry.isGeneratingTitle = true
         context.insert(entry)
@@ -198,40 +210,97 @@ struct HomeView: View {
             try? context.save()
         }
         quickText = ""
-        quickType = nil
-        quickProject = nil
+        quickTags = []
         dismissQuickCapture()
     }
 
-    private func expandQuickCapture() {
-        draftBody = quickText
-        draftType = quickType?.rawValue ?? ""
-        isQuickCapturePresented = false
-        router.newEntry(date: selectedDate)
+    private var suggestedTags: [EntryTag] {
+        let active = availableTags.filter { !$0.isArchived && TagNameRules.isValid($0.name) }
+        var usage: [PersistentIdentifier: (count: Int, recency: Int)] = [:]
+        for (index, entry) in entries.prefix(100).enumerated() {
+            for tag in entry.tags {
+                let current = usage[tag.persistentModelID] ?? (0, 0)
+                usage[tag.persistentModelID] = (current.count + 1, max(current.recency, 100 - index))
+            }
+        }
+
+        let normalizedText = TagNameRules.canonical(quickText)
+        var seen: Set<String> = []
+        return active
+            .filter { seen.insert(TagNameRules.canonical($0.name)).inserted }
+            .sorted { lhs, rhs in
+                let left = usage[lhs.persistentModelID] ?? (0, 0)
+                let right = usage[rhs.persistentModelID] ?? (0, 0)
+                let leftMentioned = !normalizedText.isEmpty && normalizedText.contains(TagNameRules.canonical(lhs.name))
+                let rightMentioned = !normalizedText.isEmpty && normalizedText.contains(TagNameRules.canonical(rhs.name))
+                let leftScore = (leftMentioned ? 10_000 : 0) + left.count * 100 + left.recency
+                let rightScore = (rightMentioned ? 10_000 : 0) + right.count * 100 + right.recency
+                if leftScore == rightScore {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return leftScore > rightScore
+            }
+            .prefix(5)
+            .map { $0 }
     }
 }
 
 private struct QuickCaptureBar: View {
     @Binding var text: String
-    @Binding var type: EntryType?
-    @Binding var project: Project?
-    let projects: [Project]
+    @Binding var selectedTags: [EntryTag]
+    let availableTags: [EntryTag]
+    let suggestedTags: [EntryTag]
     let save: () -> Void
-    let expand: () -> Void
     let dismiss: () -> Void
 
-    @FocusState private var isFocused: Bool
     @State private var dragOffset: CGFloat = 0
+    @State private var inputLanguage: String?
+    @State private var editorHeight: CGFloat = 44
+    @State private var isSubmitting = false
+    @StateObject private var dictation = SpeechDictationController()
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                TextField("Write something…", text: $text, axis: .vertical)
-                    .font(.bodyText(18))
-                    .lineLimit(1...3)
-                    .focused($isFocused)
+            HStack(alignment: .bottom, spacing: 10) {
+                InlineMentionEditor(
+                    text: $text,
+                    tags: $selectedTags,
+                    placeholder: "Write something…",
+                    fontSize: 18,
+                    scrolls: editorHeight >= 108,
+                    autoFocus: true,
+                    onInputLanguageChange: { inputLanguage = $0 },
+                    onContentHeightChange: { measuredHeight in
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            editorHeight = min(max(measuredHeight, 44), 108)
+                        }
+                    }
+                )
+                .frame(height: editorHeight)
+                .frame(maxWidth: .infinity)
 
-                Button(action: save) {
+                Button {
+                    dictation.toggle(text: text, language: inputLanguage) { text = $0 }
+                } label: {
+                    Image(systemName: dictation.isRecording ? "stop.fill" : "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(dictation.isRecording ? Color.white : Palette.ink2)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            Circle().fill(dictation.isRecording ? Palette.accent : Color.white)
+                        )
+                        .overlay(
+                            Circle().stroke(
+                                dictation.isRecording ? Palette.accent : Palette.ink.opacity(0.18),
+                                lineWidth: 1
+                            )
+                        )
+                        .shadow(color: Palette.ink.opacity(0.08), radius: 4, y: 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Start dictation")
+
+                Button(action: submit) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.white)
@@ -239,38 +308,12 @@ private struct QuickCaptureBar: View {
                         .background(Circle().fill(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Palette.line : Palette.control))
                 }
                 .buttonStyle(.plain)
+                .disabled(isSubmitting)
             }
 
-            HStack(spacing: 8) {
-                Menu {
-                    Button("No type") { type = nil }
-                    ForEach(EntryType.allCases) { candidate in
-                        Button(candidate.title) { type = candidate }
-                    }
-                } label: {
-                    quickChip(type?.title ?? "+ Type", isOn: type != nil)
-                }
+            TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
 
-                Menu {
-                    Button("No project") { project = nil }
-                    ForEach(projects) { candidate in
-                        Button(candidate.name) { project = candidate }
-                    }
-                } label: {
-                    quickChip(project.map { "\($0.emoji) \($0.name)" } ?? "+ Project", isOn: project != nil)
-                }
-
-                Spacer()
-
-                Button(action: expand) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
-                        .frame(width: 36, height: 36)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open full entry")
-            }
+            suggestedTagRow
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
@@ -285,43 +328,64 @@ private struct QuickCaptureBar: View {
             DragGesture(minimumDistance: 12)
                 .onChanged { value in
                     dragOffset = max(0, value.translation.height)
-                    if dragOffset > 18 {
-                        isFocused = false
-                    }
                 }
                 .onEnded { value in
                     if value.translation.height > 64 || value.predictedEndTranslation.height > 110 {
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            dragOffset = 180
-                        }
                         dismiss()
-                    } else if value.translation.height < -52 {
-                        expand()
                     } else {
                         withAnimation(Motion.spring) {
                             dragOffset = 0
                         }
-                        Task {
-                            try? await Task.sleep(for: .milliseconds(120))
-                            isFocused = true
-                        }
                     }
                 }
         )
-        .task {
-            try? await Task.sleep(for: .milliseconds(180))
-            isFocused = true
+        .onDisappear { dictation.stop() }
+        .alert("Dictation unavailable", isPresented: Binding(
+            get: { dictation.errorMessage != nil },
+            set: { if !$0 { dictation.clearError() } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(dictation.errorMessage ?? "")
         }
     }
 
-    private func quickChip(_ title: String, isOn: Bool) -> some View {
-        Text(title)
-            .font(.bodyText(13.5, weight: isOn ? .semibold : .regular))
-            .foregroundStyle(isOn ? Color.white : Palette.ink2)
-            .lineLimit(1)
-            .padding(.horizontal, 13)
-            .frame(minHeight: 34)
-            .background(Capsule().fill(isOn ? Palette.control : Palette.card))
-            .overlay(Capsule().stroke(isOn ? Palette.control : Palette.cardLine, lineWidth: 1))
+    @ViewBuilder
+    private var suggestedTagRow: some View {
+        let visible = suggestedTags.filter { candidate in
+            !selectedTags.contains { $0.persistentModelID == candidate.persistentModelID }
+        }
+        if !visible.isEmpty, MentionText.query(in: text) == nil {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(visible) { tag in
+                        Button { insertSuggested(tag) } label: {
+                            MentionCard(tag: tag)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func submit() {
+        guard !isSubmitting,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isSubmitting = true
+
+        Task { @MainActor in
+            await dictation.stopAndWait()
+            save()
+        }
+    }
+
+    private func insertSuggested(_ tag: EntryTag) {
+        guard !selectedTags.contains(where: { $0.persistentModelID == tag.persistentModelID }) else {
+            return
+        }
+        selectedTags.append(tag)
+        if let last = text.last, !last.isWhitespace { text.append(" ") }
+        text.append("@\(tag.name) ")
     }
 }

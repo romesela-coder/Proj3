@@ -35,6 +35,9 @@ final class Entry {
 
     var project: Project?
 
+    @Relationship(deleteRule: .nullify, inverse: \EntryTag.entries)
+    var tags: [EntryTag] = []
+
     /// Link to an active quarterly goal (§06, `goalRef`). Optional — most
     /// entries never belong to a declared goal, and that is itself the finding.
     var goal: Goal?
@@ -52,6 +55,7 @@ final class Entry {
         self.trashedAt = nil
         self.typeRaw = type?.rawValue
         self.project = project
+        self.tags = []
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []
     }

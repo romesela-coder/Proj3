@@ -207,6 +207,11 @@ struct ProjectEditView: View {
                             .font(.bodyText(17))
                             .multilineTextAlignment(.leading)
                             .textFieldStyle(.plain)
+                            .onChange(of: project.name) { _, newValue in
+                                if newValue.count > TagNameRules.maxLength {
+                                    project.name = String(newValue.prefix(TagNameRules.maxLength))
+                                }
+                            }
                     }
                     .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
@@ -257,7 +262,7 @@ struct ProjectEditView: View {
     }
 
     private func save() {
-        guard !trimmedName.isEmpty else { return }
+        guard TagNameRules.isValid(project.name) else { return }
         project.name = trimmedName
         let enteredEmoji = project.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
         project.emoji = enteredEmoji.first.map(String.init) ?? "📁"
