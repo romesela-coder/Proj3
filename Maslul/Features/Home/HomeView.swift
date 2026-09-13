@@ -151,12 +151,19 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 2) {
-                viewModeButton(.calendar, symbol: "calendar")
-                viewModeButton(.boxes, symbol: "square.grid.2x2")
+            HStack(spacing: 8) {
+                CircleButton(symbol: "magnifyingglass") {
+                    router.openSearch()
+                }
+                .accessibilityLabel("Global search")
+
+                HStack(spacing: 2) {
+                    viewModeButton(.calendar, symbol: "calendar")
+                    viewModeButton(.boxes, symbol: "square.grid.2x2")
+                }
+                .padding(4)
+                .background(Capsule().fill(Palette.neutralTile))
             }
-            .padding(4)
-            .background(Capsule().fill(Palette.neutralTile))
             .padding(.top, 1)
         }
     }
