@@ -48,6 +48,10 @@ struct RootView: View {
                                 JournalView(preset: preset)
                             case .box(let box):
                                 BoxDetailView(box: box)
+                            case .tag(let tag):
+                                TagEntriesView(tag: tag)
+                            case .search:
+                                GlobalSearchView()
                             }
                         }
                 }

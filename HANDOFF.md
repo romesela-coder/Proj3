@@ -188,18 +188,20 @@ migration. Do not derive manual order only from transient view indices.
 
 ### 3. Global search
 
+Status: completed September 13, 2026.
+
 Search is global rather than limited to the Journal list. It should open as a
 focused full-screen search surface with the keyboard active and recent
 Tags/Boxes visible before a query is entered.
 
-- Search entry titles and bodies, Tag names, Box names, and dates.
-- Group direct Tag and Box matches separately from matching entries. Selecting
+- [x] Search entry titles and bodies, Tag names, Box names, and dates.
+- [x] Group direct Tag and Box matches separately from matching entries. Selecting
   a Tag opens its entries; selecting a Box opens its board.
-- Support filters for Box, Tag, date or date range, attachments, privacy, and
+- [x] Support filters for Box, Tag, date or date range, attachments, privacy, and
   `Newest`/`Oldest` ordering.
-- Normalize case and diacritics, support partial matches, and tolerate modest
+- [x] Normalize case and diacritics, support partial matches, and tolerate modest
   spelling errors in both English and Hebrew input.
-- Start with fast deterministic local search. Natural-language and semantic
+- [x] Start with fast deterministic local search. Natural-language and semantic
   retrieval belong to the later AI project and must not block this version.
 
 ### 4. Full entry editor
