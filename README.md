@@ -24,9 +24,9 @@ xcodebuild \
   build
 ```
 
-- Xcode 26.x is recommended. It compiles the iOS 26 Speech and Foundation
-  Models paths as well as the older-OS fallbacks.
-- Deployment target: iOS 17.0.
+- Xcode 26.x is required.
+- Deployment target: iOS 26.0. The full editor uses SwiftUI's native
+  `AttributedString` editing and system formatting controls.
 - iPhone only, portrait only, light appearance.
 - No Swift Package Manager, CocoaPods, or other external dependencies.
 - Simulator builds do not need signing. A physical device needs a valid local
@@ -84,6 +84,10 @@ starts dictation.
 
 - Journal search, date range, entry-type, and project filters.
 - A Box-based board alongside the date-based Calendar view.
+- Global local search across entry titles and bodies, tags, Boxes, and dates,
+  with Box, tag, date, attachment, privacy, and chronological filters.
+- A consistent Manage menu in Calendar, Box shelves, and focused Box boards for
+  persisted manual ordering, chronological ordering, and recoverable deletion.
 - Weekly tidy and time-allocation flows.
 - Time-allocation reports and goals-versus-reality views.
 - Markdown and JSON export, with sensitive entries excluded by default.
@@ -92,6 +96,8 @@ starts dictation.
 ### Deletion
 
 - Entries use recoverable deletion: a swipe moves them to Trash for 48 hours.
+- Manual Manage mode exposes native row deletion in Calendar and card deletion
+  in Boxes without dimming entry content.
 - Trash supports restore and permanent deletion; expired entries are purged on
   launch.
 - Tags, custom tag groups, projects, and attachments have direct delete
@@ -103,7 +109,8 @@ Dictation has two runtime paths:
 
 - On iOS 26, `SpeechAnalyzer` and `DictationTranscriber` use progressive
   long-form dictation and finalize the last phrase before an entry is saved.
-- On older systems, `SFSpeechRecognizer` provides the compatible fallback.
+- The older `SFSpeechRecognizer` implementation remains isolated in the
+  service, but the shipping target now runs the iOS 26 `SpeechAnalyzer` path.
 
 The locale follows the current keyboard (`he-IL`, `en-US`, or the reported
 keyboard language). The app requests Speech assets through the system when a
@@ -167,8 +174,8 @@ Maslul/
   the current mention flow is explicit and the suggestion row is ranked
   locally.
 - Tags and legacy project/type fields are not yet one unified reporting model.
-- The Boxes board is intentionally a lightweight overview today. Board search,
-  ordering, drag-and-drop filing, and Box-specific actions are not implemented.
+- Box creation and icon selection are available from filing flows, but broader
+  Box lifecycle management such as renaming or deleting a Box is not implemented.
 - Semantic search, monthly summaries, résumé-line drafting, widgets/App
   Intents, Face ID lock, and encrypted backup are not implemented.
 - The app shell and new capture/tag surfaces are LTR English. Some older

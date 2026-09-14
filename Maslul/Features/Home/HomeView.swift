@@ -28,6 +28,7 @@ struct HomeView: View {
     @State private var quickText = ""
     @State private var quickTags: [EntryTag] = []
     @State private var quickBox: EntryBox?
+    @State private var quickSelection = NSRange(location: 0, length: 0)
     @State private var viewMode: ViewMode = .calendar
     @State private var weekAnchorDate = Calendar.current.startOfDay(for: .now)
     @State private var calendarEntryRowFrames: [CGRect] = []
@@ -101,6 +102,7 @@ struct HomeView: View {
                     text: $quickText,
                     selectedTags: $quickTags,
                     selectedBox: $quickBox,
+                    selection: $quickSelection,
                     availableTags: availableTags,
                     suggestedTags: suggestedTags,
                     save: saveQuickEntry,
@@ -218,11 +220,6 @@ struct HomeView: View {
                     .tracking(2.2)
                     .foregroundStyle(Palette.meta)
                 Spacer()
-                Text("\(selectedEntries.count) CAUGHT")
-                    .font(.utility(11))
-                    .tracking(1.6)
-                    .foregroundStyle(Palette.meta)
-
                 calendarSortControl
             }
 
@@ -259,7 +256,7 @@ struct HomeView: View {
     private var calendarSortControl: some View {
         if calendarEditMode.isEditing {
             Button {
-                withAnimation(Motion.spring) { stopCalendarReordering() }
+                stopCalendarReordering()
             } label: {
                 calendarSortLabel(title: "Done", symbol: "checkmark", isActive: true)
             }
@@ -267,11 +264,9 @@ struct HomeView: View {
         } else {
             Menu {
                 Button {
-                    withAnimation(Motion.spring) {
-                        calendarEditMode = .active
-                    }
+                    startCalendarReordering()
                 } label: {
-                    Label("Manual order", systemImage: "line.3.horizontal")
+                    Label("Reorder & delete", systemImage: "arrow.up.arrow.down")
                 }
 
                 Divider()
@@ -288,7 +283,7 @@ struct HomeView: View {
                     Label("Oldest first", systemImage: "arrow.up")
                 }
             } label: {
-                calendarSortLabel(title: "Sort", symbol: "arrow.up.arrow.down", isActive: false)
+                calendarSortLabel(title: "Manage", symbol: "slider.horizontal.3", isActive: false)
             }
         }
     }
@@ -333,33 +328,39 @@ struct HomeView: View {
                                     )
                                 }
                             )
+                            .padding(
+                                .horizontal,
+                                calendarEditMode.isEditing ? Metrics.hMargin : 0
+                            )
                     }
                         .buttonStyle(.plain)
-                        .disabled(calendarEditMode.isEditing)
+                        .allowsHitTesting(!calendarEditMode.isEditing)
                         .journalListRow()
-                        .swipeActions(
-                            edge: .trailing,
-                            allowsFullSwipe: !calendarEditMode.isEditing
-                        ) {
-                            if !calendarEditMode.isEditing {
-                                Button(role: .destructive) { moveToTrash(entry) } label: {
-                                    Label("Trash", systemImage: "trash")
-                                }
-                                .tint(.red)
-                            }
-                        }
                 }
                 .onMove(perform: moveCalendarEntries)
+                .onDelete(perform: deleteCalendarEntries)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
+        .padding(
+            .horizontal,
+            calendarEditMode.isEditing ? -Metrics.hMargin : 0
+        )
         .environment(\.editMode, $calendarEditMode)
     }
 
     private func stopCalendarReordering() {
-        calendarEditMode = .inactive
+        withAnimation(.easeOut(duration: 0.18)) {
+            calendarEditMode = .inactive
+        }
+    }
+
+    private func startCalendarReordering() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            calendarEditMode = .active
+        }
     }
 
     private func applyCalendarSort(newestFirst: Bool) {
@@ -382,9 +383,13 @@ struct HomeView: View {
         try? context.save()
     }
 
-    private func moveToTrash(_ entry: Entry) {
-        entry.moveToTrash()
+    private func deleteCalendarEntries(at offsets: IndexSet) {
+        let entriesToDelete = offsets.map { selectedEntries[$0] }
+        withAnimation(Motion.spring) {
+            entriesToDelete.forEach { $0.moveToTrash() }
+        }
         try? context.save()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func shortWeekday(_ date: Date) -> String {
@@ -453,6 +458,7 @@ struct HomeView: View {
         quickText = ""
         quickTags = []
         quickBox = nil
+        quickSelection = NSRange(location: 0, length: 0)
         dismissQuickCapture()
     }
 
@@ -544,10 +550,11 @@ private struct CalendarEntryRowFramesKey: PreferenceKey {
     }
 }
 
-private struct QuickCaptureBar: View {
+struct QuickCaptureBar: View {
     @Binding var text: String
     @Binding var selectedTags: [EntryTag]
     @Binding var selectedBox: EntryBox?
+    @Binding var selection: NSRange
     let availableTags: [EntryTag]
     let suggestedTags: [EntryTag]
     let save: () -> Void
@@ -570,6 +577,7 @@ private struct QuickCaptureBar: View {
                     fontSize: 18,
                     scrolls: editorHeight >= 108,
                     autoFocus: true,
+                    selection: $selection,
                     onInputLanguageChange: { inputLanguage = $0 },
                     onContentHeightChange: { measuredHeight in
                         withAnimation(.easeOut(duration: 0.16)) {
@@ -612,7 +620,12 @@ private struct QuickCaptureBar: View {
                 .disabled(isSubmitting)
             }
 
-            TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
+            TagMentionSuggestions(
+                text: $text,
+                selectedTags: $selectedTags,
+                tags: availableTags,
+                query: MentionText.query(in: text)
+            )
 
             composerAccessoryRow
         }
@@ -678,7 +691,7 @@ private struct QuickCaptureBar: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

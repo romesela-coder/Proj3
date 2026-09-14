@@ -11,12 +11,14 @@ private enum SuggestedField: Hashable {
 struct CaptureView: View {
     let presetType: EntryType?
     let presetDate: Date?
+    let presetBox: EntryBox?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
     @AppStorage(SettingsKey.draftBody) private var draftBody = ""
     @AppStorage(SettingsKey.draftType) private var draftType = ""
+    @AppStorage(SettingsKey.draftRichText) private var draftRichText = ""
 
     @Query(sort: \Project.createdAt, order: .forward)
     private var projects: [Project]
@@ -49,7 +51,9 @@ struct CaptureView: View {
     @State private var suggestionRequestID: UUID?
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var didSave = false
-    @State private var selectedDetent: PresentationDetent = .large
+    @State private var selectedDetent: PresentationDetent = .height(174)
+    @State private var attributedText = AttributedString()
+    @State private var editorSelection = AttributedTextSelection()
 
     private var activeProjects: [Project] {
         projects.filter(\.isSelectable)
@@ -95,12 +99,14 @@ struct CaptureView: View {
     private var quickComposer: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                InlineMentionEditor(
-                    text: $text,
-                    tags: $selectedTags,
+                NativeRichTextEditor(
+                    text: $attributedText,
+                    selection: $editorSelection,
                     placeholder: type?.hint ?? "Write something…",
                     fontSize: 18,
-                    autoFocus: true
+                    scrolls: true,
+                    autoFocus: true,
+                    onPlainTextChange: richTextDidChange
                 )
                 .frame(maxWidth: .infinity, minHeight: 42, maxHeight: 72)
 
@@ -118,7 +124,13 @@ struct CaptureView: View {
                 .accessibilityLabel("Save entry")
             }
 
-            TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
+            TagMentionSuggestions(
+                text: $text,
+                selectedTags: $selectedTags,
+                tags: availableTags,
+                query: NativeRichTextMentions.query(in: attributedText, selection: editorSelection),
+                onInsert: insertMention
+            )
 
             HStack(spacing: 8) {
                 if isGeneratingSuggestions {
@@ -176,7 +188,18 @@ struct CaptureView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     editor
-                    TagMentionSuggestions(text: $text, selectedTags: $selectedTags, tags: availableTags)
+                    NativeRichTextToolbar(
+                        text: $attributedText,
+                        selection: $editorSelection,
+                        baseFontSize: 17
+                    )
+                    TagMentionSuggestions(
+                        text: $text,
+                        selectedTags: $selectedTags,
+                        tags: availableTags,
+                        query: NativeRichTextMentions.query(in: attributedText, selection: editorSelection),
+                        onInsert: insertMention
+                    )
                     suggestionNote
                     typeSection
                     projectSection
@@ -227,16 +250,18 @@ struct CaptureView: View {
                     .padding(.top, 16)
                     .allowsHitTesting(false)
             }
-            InlineMentionEditor(
-                text: $text,
-                tags: $selectedTags,
+            NativeRichTextEditor(
+                text: $attributedText,
+                selection: $editorSelection,
                 placeholder: "",
                 fontSize: 17,
-                scrolls: true
+                scrolls: false,
+                autoFocus: true,
+                onPlainTextChange: richTextDidChange
             )
             .padding(16)
         }
-        .frame(minHeight: 176)
+        .frame(minHeight: 176, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Color.white))
         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).stroke(Palette.line, lineWidth: 1))
     }
@@ -467,7 +492,8 @@ struct CaptureView: View {
         entry.sensitivity = isSensitive ? .sensitive : .normal
         entry.attachmentNames = attachmentNames
         entry.tags = selectedTags
-        EntryBoxEntryOrdering.move(entry, to: EntryBoxBootstrap.inbox(in: context))
+        entry.attributedBody = NativeRichTextMentions.storageText(from: attributedText)
+        EntryBoxEntryOrdering.move(entry, to: presetBox ?? EntryBoxBootstrap.inbox(in: context))
         context.insert(entry)
         entry.isGeneratingTitle = true
         try? context.save()
@@ -503,6 +529,9 @@ struct CaptureView: View {
         }
         draftBody = text
         draftType = type?.rawValue ?? ""
+        draftRichText = EntryRichTextCodec.encodeAttributed(
+            NativeRichTextMentions.storageText(from: attributedText)
+        )?.base64EncodedString() ?? ""
     }
 
     private func restoreDraftIfNeeded() {
@@ -511,12 +540,28 @@ struct CaptureView: View {
         if presetType == nil, !draftBody.isEmpty {
             text = draftBody
             type = EntryType(rawValue: draftType)
+            if let data = Data(base64Encoded: draftRichText) {
+                attributedText = EntryRichTextCodec.decodeAttributed(data, fallback: draftBody)
+            } else {
+                attributedText = AttributedString(draftBody)
+            }
         }
     }
 
     private func clearDraft() {
         draftBody = ""
         draftType = ""
+        draftRichText = ""
+    }
+
+    private func richTextDidChange(_ plainText: String) {
+        text = plainText
+        selectedTags.removeAll { !NativeRichTextMentions.contains($0, in: plainText) }
+    }
+
+    private func insertMention(_ tag: EntryTag) {
+        NativeRichTextMentions.insert(tag, into: &attributedText, selection: &editorSelection)
+        text = NativeRichTextMentions.plainText(in: attributedText)
     }
 
     private func addProject() {

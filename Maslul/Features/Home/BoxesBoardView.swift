@@ -22,6 +22,11 @@ struct BoxesBoardView: View {
                     ForEach(boxes) { box in
                         boxShelf(box)
                             .padding(.vertical, 12)
+                            // List still reserves trailing width for its native
+                            // reorder accessory after we relocate the control.
+                            // Give that width back to the shelf so the cards
+                            // remain edge-to-edge in Sort mode.
+                            .padding(.trailing, editMode.isEditing ? -44 : 0)
                             .journalListRow()
                     }
                     .onMove(perform: moveBoxes)
@@ -38,26 +43,59 @@ struct BoxesBoardView: View {
         HStack {
             Spacer()
 
-            Button {
-                withAnimation(Motion.spring) {
-                    editMode = editMode.isEditing ? .inactive : .active
+            if editMode.isEditing {
+                Button {
+                    withAnimation(Motion.spring) { editMode = .inactive }
+                } label: {
+                    modeLabel(title: "Done", symbol: "checkmark", isActive: true)
                 }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: editMode.isEditing ? "checkmark" : "arrow.up.arrow.down")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(editMode.isEditing ? "Done" : "Sort")
+                .buttonStyle(.plain)
+            } else {
+                Menu {
+                    Button {
+                        withAnimation(Motion.spring) { editMode = .active }
+                    } label: {
+                        Label("Reorder & delete", systemImage: "arrow.up.arrow.down")
+                    }
+
+                    Divider()
+
+                    Button {
+                        applyBoxSort(newestFirst: true)
+                    } label: {
+                        Label("Newest first", systemImage: "arrow.down")
+                    }
+
+                    Button {
+                        applyBoxSort(newestFirst: false)
+                    } label: {
+                        Label("Oldest first", systemImage: "arrow.up")
+                    }
+                } label: {
+                    modeLabel(title: "Manage", symbol: "slider.horizontal.3", isActive: false)
                 }
-                .font(.bodyText(12.5, weight: .semibold))
-                .foregroundStyle(editMode.isEditing ? Color.white : Palette.ink2)
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .background(Capsule().fill(editMode.isEditing ? Palette.control : Palette.neutralTile))
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 14)
+    }
+
+    private func modeLabel(
+        title: String,
+        symbol: String,
+        isActive: Bool,
+        isDestructive: Bool = false
+    ) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+            Text(title)
+        }
+        .font(.bodyText(12.5, weight: .semibold))
+        .foregroundStyle(isActive ? Color.white : (isDestructive ? Color.red : Palette.ink2))
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(Capsule().fill(isActive ? Palette.control : Palette.neutralTile))
     }
 
     private func entries(in box: EntryBox) -> [Entry] {
@@ -89,6 +127,11 @@ struct BoxesBoardView: View {
                                 .foregroundStyle(Palette.meta)
                         }
 
+                        if editMode.isEditing {
+                            NativeReorderHandleAnchor()
+                                .frame(width: 36, height: 36)
+                        }
+
                         Spacer()
 
                         if !editMode.isEditing {
@@ -100,44 +143,85 @@ struct BoxesBoardView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(editMode.isEditing)
+                .allowsHitTesting(!editMode.isEditing)
             }
             .padding(.horizontal, Metrics.hMargin)
 
-            if !editMode.isEditing {
-                if boxEntries.isEmpty {
-                    Text("Nothing in this box yet")
-                        .font(.bodyText(13.5))
-                        .foregroundStyle(Palette.meta)
-                        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(Palette.neutralTile.opacity(0.72))
-                        )
-                        .padding(.horizontal, Metrics.hMargin)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 10) {
-                            ForEach(boxEntries) { entry in
-                                Button { openEntry(entry) } label: {
+            if boxEntries.isEmpty {
+                Text("Nothing in this box yet")
+                    .font(.bodyText(13.5))
+                    .foregroundStyle(Palette.meta)
+                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Palette.neutralTile.opacity(0.72))
+                    )
+                    .padding(.horizontal, Metrics.hMargin)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 10) {
+                        ForEach(boxEntries) { entry in
+                            ZStack(alignment: .topTrailing) {
+                                Button {
+                                    guard !editMode.isEditing else { return }
+                                    openEntry(entry)
+                                } label: {
                                     BoxEntryCard(entry: entry)
+                                        .padding(.top, editMode.isEditing ? 14 : 0)
                                 }
                                 .buttonStyle(.plain)
+
+                                if editMode.isEditing {
+                                    deleteBadge { moveToTrash(entry) }
+                                        .offset(x: 13.5)
+                                }
                             }
+                            .deleteModeWiggle(isActive: editMode.isEditing)
                         }
-                        .padding(.horizontal, Metrics.hMargin)
                     }
+                    .padding(.horizontal, Metrics.hMargin)
                 }
             }
         }
         .animation(Motion.spring, value: editMode.isEditing)
     }
 
+    private func deleteBadge(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "minus")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 27, height: 27)
+                .background(Circle().fill(Color.red))
+                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                .shadow(color: Color.black.opacity(0.12), radius: 3, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Move entry to Trash")
+    }
+
+    private func moveToTrash(_ entry: Entry) {
+        withAnimation(Motion.spring) { entry.moveToTrash() }
+        try? context.save()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
     private func moveBoxes(fromOffsets: IndexSet, toOffset: Int) {
         var reordered = boxes
         reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        for (index, box) in reordered.enumerated() {
+        persistBoxOrder(reordered)
+    }
+
+    private func applyBoxSort(newestFirst: Bool) {
+        let ordered = boxes.sorted {
+            newestFirst ? $0.createdAt > $1.createdAt : $0.createdAt < $1.createdAt
+        }
+        persistBoxOrder(ordered)
+    }
+
+    private func persistBoxOrder(_ ordered: [EntryBox]) {
+        for (index, box) in ordered.enumerated() {
             box.sortIndex = index
         }
         try? context.save()
@@ -169,7 +253,15 @@ struct BoxDetailView: View {
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var entries: [Entry]
 
+    @Query(sort: \EntryTag.name, order: .forward)
+    private var availableTags: [EntryTag]
+
     @State private var isReordering = false
+    @State private var isQuickCapturePresented = false
+    @State private var quickText = ""
+    @State private var quickTags: [EntryTag] = []
+    @State private var quickBox: EntryBox?
+    @State private var quickSelection = NSRange(location: 0, length: 0)
 
     private var boxEntries: [Entry] {
         entries
@@ -183,24 +275,44 @@ struct BoxDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                header
 
-            if boxEntries.isEmpty {
-                emptyState
-            } else if isReordering {
-                NativeReorderableEntryGrid(
-                    entries: boxEntries,
-                    persistOrder: persistBoxEntryOrder
-                )
-                .transition(.opacity)
-            } else {
-                entryGrid
+                if boxEntries.isEmpty {
+                    emptyState
+                } else if isReordering {
+                    NativeReorderableEntryGrid(
+                        entries: boxEntries,
+                        persistOrder: persistBoxEntryOrder,
+                        deleteEntry: moveToTrash
+                    )
                     .transition(.opacity)
+                } else {
+                    entryGrid
+                        .transition(.opacity)
+                }
+            }
+
+            if isQuickCapturePresented {
+                QuickCaptureBar(
+                    text: $quickText,
+                    selectedTags: $quickTags,
+                    selectedBox: $quickBox,
+                    selection: $quickSelection,
+                    availableTags: availableTags,
+                    suggestedTags: suggestedTags,
+                    save: saveQuickEntry,
+                    dismiss: dismissQuickCaptureInteractively
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .screenBackground()
-        .withDock()
+        .withDock(
+            isVisible: !isQuickCapturePresented,
+            composeAction: presentQuickCapture
+        )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -225,7 +337,7 @@ struct BoxDetailView: View {
 
             Spacer(minLength: 8)
 
-            boxSortControl
+            boxControls
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
@@ -233,7 +345,7 @@ struct BoxDetailView: View {
     }
 
     @ViewBuilder
-    private var boxSortControl: some View {
+    private var boxControls: some View {
         if isReordering {
             Button {
                 withAnimation(Motion.spring) {
@@ -250,7 +362,7 @@ struct BoxDetailView: View {
                         isReordering = true
                     }
                 } label: {
-                    Label("Manual order", systemImage: "line.3.horizontal")
+                    Label("Reorder & delete", systemImage: "arrow.up.arrow.down")
                 }
 
                 Divider()
@@ -267,19 +379,24 @@ struct BoxDetailView: View {
                     Label("Oldest first", systemImage: "arrow.up")
                 }
             } label: {
-                boxSortLabel(title: "Sort", symbol: "arrow.up.arrow.down", isActive: false)
+                boxSortLabel(title: "Manage", symbol: "slider.horizontal.3", isActive: false)
             }
         }
     }
 
-    private func boxSortLabel(title: String, symbol: String, isActive: Bool) -> some View {
+    private func boxSortLabel(
+        title: String,
+        symbol: String,
+        isActive: Bool,
+        isDestructive: Bool = false
+    ) -> some View {
         HStack(spacing: 5) {
             Image(systemName: symbol)
                 .font(.system(size: 10.5, weight: .semibold))
             Text(title)
         }
         .font(.bodyText(12, weight: .semibold))
-        .foregroundStyle(isActive ? Color.white : Palette.ink2)
+        .foregroundStyle(isActive ? Color.white : (isDestructive ? Color.red : Palette.ink2))
         .padding(.horizontal, 10)
         .frame(height: 32)
         .background(Capsule().fill(isActive ? Palette.control : Palette.neutralTile))
@@ -339,11 +456,271 @@ struct BoxDetailView: View {
         try? context.save()
     }
 
+    private func moveToTrash(_ entry: Entry) {
+        withAnimation(Motion.spring) { entry.moveToTrash() }
+        try? context.save()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func presentQuickCapture() {
+        quickBox = box
+        withAnimation(Motion.spring) { isQuickCapturePresented = true }
+    }
+
+    private func dismissQuickCapture() {
+        withAnimation(.easeOut(duration: 0.2)) { isQuickCapturePresented = false }
+    }
+
+    private func dismissQuickCaptureInteractively() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            isQuickCapturePresented = false
+        }
+    }
+
+    private func saveQuickEntry() {
+        let body = quickText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
+
+        let entry = Entry(body: body, createdAt: .now)
+        CalendarEntryOrdering.placeAtFront(entry, in: context)
+        entry.tags = quickTags
+        EntryBoxEntryOrdering.move(entry, to: quickBox ?? box)
+
+        let initialTitle = entry.titleText
+        entry.isGeneratingTitle = true
+        context.insert(entry)
+        try? context.save()
+
+        Task { @MainActor in
+            let generated = await LocalMetadataGenerator.title(
+                for: body,
+                projectName: entry.project?.name,
+                type: entry.type
+            )
+            guard entry.titleText == initialTitle else {
+                entry.isGeneratingTitle = false
+                return
+            }
+            entry.titleText = generated
+            entry.isGeneratingTitle = false
+            try? context.save()
+        }
+
+        quickText = ""
+        quickTags = []
+        quickBox = nil
+        quickSelection = NSRange(location: 0, length: 0)
+        dismissQuickCapture()
+    }
+
+    private var suggestedTags: [EntryTag] {
+        let active = availableTags.filter { !$0.isArchived && TagNameRules.isValid($0.name) }
+        var usage: [PersistentIdentifier: (count: Int, recency: Int)] = [:]
+        for (index, entry) in entries.prefix(100).enumerated() {
+            for tag in entry.tags {
+                let current = usage[tag.persistentModelID] ?? (0, 0)
+                usage[tag.persistentModelID] = (
+                    current.count + 1,
+                    max(current.recency, 100 - index)
+                )
+            }
+        }
+
+        let normalizedText = TagNameRules.canonical(quickText)
+        var seen: Set<String> = []
+        return active
+            .filter { seen.insert(TagNameRules.canonical($0.name)).inserted }
+            .sorted { lhs, rhs in
+                let left = usage[lhs.persistentModelID] ?? (0, 0)
+                let right = usage[rhs.persistentModelID] ?? (0, 0)
+                let leftMentioned = !normalizedText.isEmpty &&
+                    normalizedText.contains(TagNameRules.canonical(lhs.name))
+                let rightMentioned = !normalizedText.isEmpty &&
+                    normalizedText.contains(TagNameRules.canonical(rhs.name))
+                let leftScore = (leftMentioned ? 10_000 : 0) + left.count * 100 + left.recency
+                let rightScore = (rightMentioned ? 10_000 : 0) + right.count * 100 + right.recency
+                if leftScore == rightScore {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return leftScore > rightScore
+            }
+            .prefix(5)
+            .map { $0 }
+    }
+
+}
+
+/// SwiftUI's List keeps the native reorder accessory pinned to the trailing
+/// edge of the entire row. A shelf row is much taller than its header, so that
+/// default position overlaps the horizontal cards. This anchor relocates the
+/// existing UIKit accessory — including its native hit testing and drag
+/// behavior — to the header without replacing the reorder implementation.
+private struct NativeReorderHandleAnchor: UIViewRepresentable {
+    func makeUIView(context: Context) -> AnchorView {
+        let view = AnchorView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: AnchorView, context: Context) {
+        uiView.scheduleRelocation()
+    }
+
+    static func dismantleUIView(_ uiView: AnchorView, coordinator: Void) {
+        uiView.prepareForRemoval()
+    }
+
+    final class AnchorView: UIView {
+        private weak var relocatedHandle: UIView?
+        private var displayLink: CADisplayLink?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                stopTrackingLayouts()
+            } else {
+                startTrackingLayouts()
+                scheduleRelocation()
+            }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleRelocation()
+        }
+
+        func scheduleRelocation() {
+            DispatchQueue.main.async { [weak self] in self?.relocateHandle() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                self?.relocateHandle()
+            }
+        }
+
+        func prepareForRemoval() {
+            stopTrackingLayouts()
+            restoreHandle()
+        }
+
+        private func startTrackingLayouts() {
+            guard displayLink == nil else { return }
+            let displayLink = CADisplayLink(target: self, selector: #selector(trackListLayout))
+            displayLink.preferredFrameRateRange = CAFrameRateRange(
+                minimum: 10,
+                maximum: 15,
+                preferred: 15
+            )
+            displayLink.add(to: .main, forMode: .common)
+            self.displayLink = displayLink
+        }
+
+        private func stopTrackingLayouts() {
+            displayLink?.invalidate()
+            displayLink = nil
+        }
+
+        @objc private func trackListLayout() {
+            relocateHandle()
+        }
+
+        func restoreHandle() {
+            relocatedHandle?.transform = .identity
+            relocatedHandle = nil
+        }
+
+        private func relocateHandle() {
+            guard window != nil, bounds.width > 0, bounds.height > 0 else { return }
+            guard let cell = enclosingListCell() else { return }
+            guard let handle = cell.reorderAccessory(excluding: self),
+                  let handleSuperview = handle.superview else { return }
+
+            if relocatedHandle !== handle {
+                relocatedHandle?.transform = .identity
+                relocatedHandle = handle
+            }
+
+            handle.transform = .identity
+            let target = convert(CGPoint(x: bounds.midX, y: bounds.midY), to: cell)
+            let current = handleSuperview.convert(handle.center, to: cell)
+            handle.transform = CGAffineTransform(
+                translationX: target.x - current.x,
+                y: target.y - current.y
+            )
+        }
+
+        private func enclosingListCell() -> UIView? {
+            var candidate = superview
+            while let view = candidate {
+                if view is UITableViewCell || view is UICollectionViewCell { return view }
+                candidate = view.superview
+            }
+            return nil
+        }
+    }
+}
+
+private extension UIView {
+    func reorderAccessory(excluding anchor: UIView) -> UIView? {
+        let descendants = allDescendants.filter { view in
+            // SwiftUI wraps the representable in a platform host whose class
+            // name also inherits "NativeReorderHandleAnchor". Ignore the
+            // anchor's entire subtree and ancestor chain so it cannot be
+            // mistaken for the List's real reorder accessory.
+            guard view !== anchor,
+                  !view.isDescendant(of: anchor),
+                  !anchor.isDescendant(of: view) else { return false }
+            let className = NSStringFromClass(type(of: view)).lowercased()
+            let label = view.accessibilityLabel?.lowercased() ?? ""
+            return className.contains("reorder") || label.contains("reorder")
+        }
+        return descendants.max { lhs, rhs in
+            lhs.bounds.width * lhs.bounds.height < rhs.bounds.width * rhs.bounds.height
+        }
+    }
+
+    var allDescendants: [UIView] {
+        subviews + subviews.flatMap(\.allDescendants)
+    }
+}
+
+private struct DeleteModeWiggle: ViewModifier {
+    let isActive: Bool
+    @State private var phase = false
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(isActive ? (phase ? 0.28 : -0.28) : 0))
+            .onAppear { updateAnimation() }
+            .onChange(of: isActive) { updateAnimation() }
+    }
+
+    private func updateAnimation() {
+        guard isActive else {
+            phase = false
+            return
+        }
+        phase = false
+        withAnimation(.easeInOut(duration: 0.13).repeatForever(autoreverses: true)) {
+            phase = true
+        }
+    }
+}
+
+private extension View {
+    func deleteModeWiggle(isActive: Bool) -> some View {
+        modifier(DeleteModeWiggle(isActive: isActive))
+    }
 }
 
 private struct NativeReorderableEntryGrid: UIViewRepresentable {
     let entries: [Entry]
     let persistOrder: ([Entry]) -> Void
+    let deleteEntry: (Entry) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -436,16 +813,35 @@ private struct NativeReorderableEntryGrid: UIViewRepresentable {
             )
             let entry = orderedEntries[indexPath.item]
             cell.backgroundColor = .clear
+            cell.clipsToBounds = false
+            cell.contentView.clipsToBounds = false
             cell.contentConfiguration = UIHostingConfiguration {
-                ZStack(alignment: .topTrailing) {
-                    FocusedBoxEntryCard(entry: entry)
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack(alignment: .topTrailing) {
+                        FocusedBoxEntryCard(entry: entry)
+                            .padding(.top, 14)
+
+                        Button { self.parent.deleteEntry(entry) } label: {
+                            Image(systemName: "minus")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color.white)
+                                .frame(width: 27, height: 27)
+                                .background(Circle().fill(Color.red))
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                .shadow(color: Color.black.opacity(0.12), radius: 3, y: 1)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Move entry to Trash")
+                        .offset(x: 13.5)
+                    }
+                    .deleteModeWiggle(isActive: true)
 
                     Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Palette.ink2)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 27, height: 27)
                         .background(Circle().fill(Palette.neutralTile.opacity(0.94)))
-                        .padding(5)
+                        .padding(6)
                 }
             }
             .margins(.all, 0)
@@ -462,7 +858,7 @@ private struct NativeReorderableEntryGrid: UIViewRepresentable {
                 - collectionView.contentInset.right
                 - 10
             let width = floor(availableWidth / 2)
-            return CGSize(width: width, height: width / (226 / 126))
+            return CGSize(width: width, height: width / (226 / 126) + 14)
         }
 
         func collectionView(

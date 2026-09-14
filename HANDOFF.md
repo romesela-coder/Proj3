@@ -1,13 +1,13 @@
 # Maslul handoff
 
-Updated September 13, 2026.
+Updated September 14, 2026.
 
 ## Current baseline
 
 The project is an actively tested iPhone app, not an uncompiled prototype. The
-generalized tags, inline mentions, Boxes board, compact entry sheet, attachment
-fixes, Trash, and dictation work have all been built and exercised on a physical
-iPhone with Xcode 26.4 / iOS 26.
+generalized tags, rich inline mentions, native rich-text editor, global search,
+Boxes board, compact entry sheet, Trash, and dictation work have all been built
+and exercised on a physical iPhone with Xcode 26.4 / iOS 26.
 
 The current product loop is:
 
@@ -19,7 +19,7 @@ The current product loop is:
 4. Edit the entry in a compact sheet and optionally change its box, date,
    privacy, title, tags, or attachments.
 5. Retrieve entries by day in Calendar, by filing context in Boxes, or through
-   Journal search. The older ritual, allocation, goals, and reports surfaces are
+   global search. The older ritual, allocation, goals, and reports surfaces are
    legacy product areas and should not be treated as the direction for new work.
 
 ## Build and device check
@@ -70,15 +70,18 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
   one-box-per-entry relationship.
 - `Design/EntryBoxViews.swift` owns Box identity, selection, creation, and
   Box-level icon editing.
-- `Design/InlineMentionEditor.swift` bridges `UITextView` so mentions can be
-  real inline attachments while storage remains plain text.
+- `Design/InlineMentionEditor.swift` bridges `UITextView` for compact plain-text
+  capture and mention previews.
+- `Design/NativeRichTextEditor.swift` owns full-entry editing through the iOS 26
+  SwiftUI `TextEditor` and `AttributedString`; selection, keyboard behavior and
+  formatting controls remain system-owned.
 - `Design/TagMentions.swift` owns `@` query parsing, selection, inline tag
   creation, and mention visuals.
 - `Features/Home/HomeView.swift` owns the Calendar/Boxes mode switch, ranked tag
   suggestions, compact composer, day swipes, save coordination, and dictation
   entry point.
-- `Features/Home/BoxesBoardView.swift` owns the Box shelves and compact entry
-  cards used by the Boxes view.
+- `Features/Home/BoxesBoardView.swift` owns Box shelves, focused Box boards,
+  persistent ordering, manage/delete states, and compact entry cards.
 - `Services/SpeechDictationController.swift` owns both iOS 26
   `SpeechAnalyzer` dictation and the legacy recognizer fallback.
 - `Services/LocalMetadataGenerator.swift` owns title/icon generation and
@@ -113,10 +116,10 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
 1. Start quick capture; the editor focuses and follows the keyboard smoothly.
 2. Dictate with Hebrew and English keyboards, pause, resume, stop, and send.
    Previously finalized text must not disappear.
-3. Type `@`, choose a tag, and verify both the editor and saved entry render a
-   framed token with the group emoji and no visible `@`.
-4. Backspace once over a mention: remove the token relationship but keep the
-   tag name as editable text.
+3. Type `@`, choose a tag, and verify the full editor inserts a tinted `@Name`
+   mention while saved-entry previews continue to render the compact token.
+4. Edit or remove a full-editor mention and verify its tag relationship is
+   removed only when no complete `@Name` occurrence remains.
 5. Create a tag while writing and verify duplicate/empty/overlong names are
    rejected globally.
 6. Open Tags, swipe back, edit a tag color, and delete a custom tag/group.
@@ -136,6 +139,15 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
     unchanged.
 14. Verify the Calendar/Boxes toggle is top-aligned with the title and the
     Journal/Me control is bottom-aligned with the floating `+` button.
+15. Open Manage in Calendar, Boxes, and a focused Box. Verify each menu offers
+    `Reorder & delete`, `Newest first`, and `Oldest first`; manual mode keeps
+    content at full opacity and exposes the appropriate native or card delete
+    affordance.
+16. Reorder Box shelves, leave manual mode, enter it again, and verify the native
+    handles stay next to the Box headings rather than returning to the trailing
+    edge over the cards.
+17. Open a focused Box, tap `+`, and verify the compact composer follows the
+    keyboard with that Box selected rather than opening the legacy capture sheet.
 
 ## Product roadmap
 
@@ -165,19 +177,20 @@ the existing product before adding new surfaces.
 
 ### 2. Complete Boxes as the durable organization view
 
-Status: in progress. Focused boards, persistent ordering, and chronological
-sort actions are complete; moving entries between Boxes by direct drag and drop
-remains open.
+Status: completed September 13, 2026.
 
 - [x] Tapping a Box title opens a focused full-board view for that Box.
 - [x] Box shelf order is manual and persists. Boxes can be reordered with drag and
   drop; creation date is not a useful default sort for Box shelves.
 - [x] Entries can be reordered manually within a Box. Manual order persists.
-- [ ] Entries can be moved between Boxes with direct drag and drop.
 - [x] `Newest` and `Oldest` are explicit sort actions for entries. Applying either
   action replaces the current manual entry order; the user can then make and
   persist further manual adjustments. Applying a sort again resets those
   adjustments to the selected chronological order.
+- [x] Use one Manage convention in Calendar, Box shelves, and focused Box boards:
+  `Reorder & delete`, `Newest first`, and `Oldest first`. Manual mode exposes
+  deletion without dimming content, and focused-Box capture uses the shared
+  keyboard-attached composer with the current Box preselected.
 
 Manual ordering uses native iOS reordering behavior: Calendar and Box shelves
 use `List.onMove`, while the focused two-column Box board uses interactive
@@ -206,17 +219,19 @@ Tags/Boxes visible before a query is entered.
 
 ### 4. Full entry editor
 
-Keep quick capture minimal. Swiping upward while creating an entry, or
-expanding an existing entry, should transition smoothly to a full-screen editor
-without losing text, selection, mentions, or keyboard state.
+Status: completed September 14, 2026.
 
-- Support long notes with natural dynamic growth and scrolling.
-- Add only basic formatting initially: bold, italic, bulleted lists, numbered
-  lists, and checklists.
-- Keep mentions, Box, date, privacy, and attachments part of the same entry.
-- Persist formatting and semantic mentions in a structured, migration-safe
-  representation. Do not bolt formatting onto the plain body string in a way
-  that breaks mention identity, export, or older entries.
+- [x] Keep quick capture minimal. Expanding the sheet is the full editor; there
+  is no second full-screen surface or redundant expand button.
+- [x] Preserve text, selection, mentions, and keyboard state while the sheet
+  moves between detents.
+- [x] Support long notes with natural dynamic growth and outer-sheet scrolling.
+- [x] Replace the unstable custom TextKit formatting engine with the iOS 26
+  native attributed `TextEditor` and system formatting controls.
+- [x] Keep mentions, Box, date, privacy, and attachments part of the same entry.
+- [x] Persist formatting separately from the canonical plain body in a versioned,
+  migration-safe representation. Markdown and JSON exports preserve formatting,
+  and older entries remain valid without conversion.
 
 ### 5. Per-entry reminders
 

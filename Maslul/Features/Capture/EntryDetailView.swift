@@ -7,6 +7,7 @@ import PhotosUI
 struct EntryDetailView: View {
     @Bindable var entry: Entry
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
     @Query(sort: \Project.createdAt, order: .forward)
@@ -20,7 +21,22 @@ struct EntryDetailView: View {
     @State private var showBoxPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var selectedDetent: PresentationDetent = .fraction(0.68)
-    @State private var bodyEditorHeight: CGFloat = 86
+    @State private var bodyText: AttributedString
+    @State private var bodyPlainText: String
+    @State private var bodyTags: [EntryTag]
+    @State private var bodySelection = AttributedTextSelection()
+    @State private var editorFocusRequest = 0
+
+    init(entry: Entry) {
+        self.entry = entry
+        let attributed = NativeRichTextMentions.applyingStyles(
+            to: entry.attributedBody,
+            tags: entry.tags
+        )
+        _bodyText = State(initialValue: attributed)
+        _bodyPlainText = State(initialValue: entry.body)
+        _bodyTags = State(initialValue: entry.tags)
+    }
 
     private var activeProjects: [Project] {
         // A closed project stays on the entries already filed under it.
@@ -28,7 +44,7 @@ struct EntryDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .top, spacing: 14) {
@@ -72,15 +88,15 @@ struct EntryDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .environment(\.layoutDirection, .leftToRight)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 16)
 
-                    bodyCard
+                    bodyCard(minimumEditorHeight: max(150, proxy.size.height * 0.52))
                     actionRow
                     attachmentStrip
                 }
                 .padding(.horizontal, Metrics.hMargin)
-                .padding(.top, 28)
-                .padding(.bottom, 24)
+                .padding(.top, 22)
+                .padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
@@ -118,6 +134,11 @@ struct EntryDetailView: View {
             CalendarEntryOrdering.placeAtFront(entry, in: context)
         }
         .onDisappear {
+            entry.body = bodyPlainText
+            entry.richTextData = EntryRichTextCodec.encodeAttributed(
+                NativeRichTextMentions.storageText(from: bodyText)
+            )
+            entry.tags = bodyTags
             entry.touch()
             try? context.save()
         }
@@ -186,25 +207,44 @@ struct EntryDetailView: View {
             .environment(\.layoutDirection, .leftToRight)
     }
 
-    private var bodyCard: some View {
+    private func bodyCard(minimumEditorHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            InlineMentionEditor(
-                text: $entry.body,
-                tags: $entry.tags,
+            NativeRichTextEditor(
+                text: $bodyText,
+                selection: $bodySelection,
                 placeholder: "Write something…",
                 fontSize: 21,
                 scrolls: false,
+                focusRequest: editorFocusRequest,
                 onFocus: { selectedDetent = .large },
-                onContentHeightChange: { measuredHeight in
-                    bodyEditorHeight = max(86, ceil(measuredHeight))
+                onPlainTextChange: richTextDidChange
+            )
+            .frame(minHeight: minimumEditorHeight, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if selectedDetent != .large {
+                        withAnimation(Motion.spring) { selectedDetent = .large }
+                    }
+                    editorFocusRequest += 1
                 }
             )
-                .frame(height: bodyEditorHeight)
-            TagMentionSuggestions(text: $entry.body, selectedTags: $entry.tags, tags: availableTags)
+            TagMentionSuggestions(
+                text: $bodyPlainText,
+                selectedTags: $bodyTags,
+                tags: availableTags,
+                query: NativeRichTextMentions.query(in: bodyText, selection: bodySelection),
+                onInsert: insertMention
+            )
+            NativeRichTextToolbar(
+                text: $bodyText,
+                selection: $bodySelection,
+                baseFontSize: 21
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.layoutDirection, .leftToRight)
-        .padding(.bottom, 22)
+        .padding(.bottom, 16)
     }
 
     private var actionRow: some View {
@@ -235,24 +275,55 @@ struct EntryDetailView: View {
             .buttonStyle(.plain)
 
             Spacer()
+
+            Button { moveEntryToTrash() } label: {
+                compactAction(symbol: "trash", title: "Trash", isOn: false, isDestructive: true)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.top, 4)
-        .padding(.bottom, 18)
+        .padding(.top, 2)
+        .padding(.bottom, 12)
         .overlay(alignment: .top) {
-            Rectangle().fill(Palette.lineSoft).frame(height: 1).offset(y: -10)
+            Rectangle().fill(Palette.lineSoft).frame(height: 1).offset(y: -8)
         }
     }
 
-    private func compactAction(symbol: String, title: String, isOn: Bool) -> some View {
+    private func compactAction(
+        symbol: String,
+        title: String,
+        isOn: Bool,
+        isDestructive: Bool = false
+    ) -> some View {
         HStack(spacing: 6) {
             Image(systemName: symbol).font(.system(size: 13, weight: .medium))
             Text(title).lineLimit(1)
         }
-        .font(.bodyText(12.5, weight: .semibold))
-        .foregroundStyle(isOn ? Color.white : Palette.ink2)
-        .padding(.horizontal, 11)
-        .frame(minHeight: 34)
+        .font(.bodyText(12, weight: .semibold))
+        .foregroundStyle(isDestructive ? Color.red : (isOn ? Color.white : Palette.ink2))
+        .padding(.horizontal, 10)
+        .frame(minHeight: 32)
         .background(Capsule().fill(isOn ? Palette.control : Palette.neutralTile))
+    }
+
+    private func moveEntryToTrash() {
+        entry.body = bodyPlainText
+        entry.richTextData = EntryRichTextCodec.encodeAttributed(
+            NativeRichTextMentions.storageText(from: bodyText)
+        )
+        entry.tags = bodyTags
+        entry.moveToTrash()
+        try? context.save()
+        dismiss()
+    }
+
+    private func richTextDidChange(_ plainText: String) {
+        bodyPlainText = plainText
+        bodyTags.removeAll { !NativeRichTextMentions.contains($0, in: plainText) }
+    }
+
+    private func insertMention(_ tag: EntryTag) {
+        NativeRichTextMentions.insert(tag, into: &bodyText, selection: &bodySelection)
+        bodyPlainText = NativeRichTextMentions.plainText(in: bodyText)
     }
 
     @ViewBuilder
