@@ -21,6 +21,7 @@ enum JournalRoute: Hashable {
     case box(EntryBox)
     case tag(EntryTag)
     case search
+    case reminders
 }
 
 enum MeRoute: Hashable {
@@ -78,6 +79,13 @@ final class Router {
     func openSearch() {
         tab = .journal
         journalPath.append(.search)
+    }
+
+    func openReminders() {
+        tab = .journal
+        if journalPath.last != .reminders {
+            journalPath.append(.reminders)
+        }
     }
 
     func startAllocation() {

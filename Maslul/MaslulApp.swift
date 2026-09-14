@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct MaslulApp: App {
+    @UIApplicationDelegateAdaptor(MaslulAppDelegate.self) private var appDelegate
     private let container: ModelContainer
 
     init() {

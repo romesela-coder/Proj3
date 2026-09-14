@@ -18,6 +18,7 @@ struct EntryDetailView: View {
 
     @State private var showProjectPicker = false
     @State private var showDatePicker = false
+    @State private var showReminderPicker = false
     @State private var showBoxPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var selectedDetent: PresentationDetent = .fraction(0.68)
@@ -81,9 +82,13 @@ struct EntryDetailView: View {
                             .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
                             .onTapGesture { selectedDetent = .large }
 
-                            Text("\(Fmt.stamp(entry.createdAt)) · \(entry.box?.name ?? "Inbox")")
-                                .font(.bodyText(12.5))
-                                .foregroundStyle(Palette.meta)
+                            Button { showDatePicker = true } label: {
+                                Text("\(Fmt.stamp(entry.createdAt)) · \(entry.box?.name ?? "Inbox")")
+                                    .font(.bodyText(12.5))
+                                    .foregroundStyle(Palette.meta)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Edit entry date")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -115,6 +120,15 @@ struct EntryDetailView: View {
         .sheet(isPresented: $showDatePicker) {
             DatePickerSheet(date: $entry.createdAt)
         }
+        .sheet(isPresented: $showReminderPicker) {
+            EntryReminderPicker(
+                reminderAt: $entry.reminderAt,
+                delivery: Binding(
+                    get: { entry.reminderDelivery },
+                    set: { entry.reminderDelivery = $0 }
+                )
+            )
+        }
         .sheet(isPresented: $showBoxPicker) {
             EntryBoxPicker(
                 selectedBox: Binding(
@@ -132,6 +146,13 @@ struct EntryDetailView: View {
         .onChange(of: entry.createdAt) { oldValue, newValue in
             guard !Calendar.current.isDate(oldValue, inSameDayAs: newValue) else { return }
             CalendarEntryOrdering.placeAtFront(entry, in: context)
+        }
+        .onChange(of: entry.reminderAt) { _, newValue in
+            reminderChanged(to: newValue)
+        }
+        .onChange(of: entry.reminderDeliveryRaw) { _, _ in
+            guard entry.reminderAt != nil else { return }
+            reminderChanged(to: entry.reminderAt)
         }
         .onDisappear {
             entry.body = bodyPlainText
@@ -229,6 +250,7 @@ struct EntryDetailView: View {
                     editorFocusRequest += 1
                 }
             )
+
             TagMentionSuggestions(
                 text: $bodyPlainText,
                 selectedTags: $bodyTags,
@@ -248,38 +270,47 @@ struct EntryDetailView: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 8) {
-            Button { showDatePicker = true } label: {
-                compactAction(symbol: "calendar", title: Fmt.dayDot(entry.createdAt), isOn: false)
-            }
-            .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                PhotosPicker(
+                    selection: $photoItems,
+                    maxSelectionCount: AttachmentStore.maxPerEntry - entry.attachmentNames.count,
+                    matching: .images
+                ) {
+                    compactAction(
+                        symbol: "paperclip",
+                        title: entry.attachmentNames.isEmpty ? "Attach" : "\(entry.attachmentNames.count)",
+                        isOn: !entry.attachmentNames.isEmpty
+                    )
+                }
+                .disabled(entry.attachmentNames.count >= AttachmentStore.maxPerEntry)
 
-            PhotosPicker(
-                selection: $photoItems,
-                maxSelectionCount: AttachmentStore.maxPerEntry - entry.attachmentNames.count,
-                matching: .images
-            ) {
+                Button {
+                    mutate { entry.sensitivity = entry.isSensitive ? .normal : .sensitive }
+                } label: {
+                    compactAction(symbol: entry.isSensitive ? "lock.fill" : "lock.open", title: "Private", isOn: entry.isSensitive)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button { moveEntryToTrash() } label: {
+                    compactAction(symbol: "trash", title: "Trash", isOn: false, isDestructive: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button { showReminderPicker = true } label: {
                 compactAction(
-                    symbol: "paperclip",
-                    title: entry.attachmentNames.isEmpty ? "Attach" : "\(entry.attachmentNames.count)",
-                    isOn: !entry.attachmentNames.isEmpty
+                    symbol: entry.hasReminder ? "bell.fill" : "bell",
+                    title: entry.reminderAt.map(Fmt.reminderStamp) ?? "Remind",
+                    isOn: entry.hasReminder,
+                    usesAccentWhenOn: true,
+                    symbolSize: 15
                 )
             }
-            .disabled(entry.attachmentNames.count >= AttachmentStore.maxPerEntry)
-
-            Button {
-                mutate { entry.sensitivity = entry.isSensitive ? .normal : .sensitive }
-            } label: {
-                compactAction(symbol: entry.isSensitive ? "lock.fill" : "lock.open", title: "Private", isOn: entry.isSensitive)
-            }
             .buttonStyle(.plain)
-
-            Spacer()
-
-            Button { moveEntryToTrash() } label: {
-                compactAction(symbol: "trash", title: "Trash", isOn: false, isDestructive: true)
-            }
-            .buttonStyle(.plain)
+            .accessibilityLabel(entry.hasReminder ? "Edit reminder" : "Add reminder")
         }
         .padding(.top, 2)
         .padding(.bottom, 12)
@@ -292,17 +323,25 @@ struct EntryDetailView: View {
         symbol: String,
         title: String,
         isOn: Bool,
-        isDestructive: Bool = false
+        isDestructive: Bool = false,
+        usesAccentWhenOn: Bool = false,
+        symbolSize: CGFloat = 13
     ) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .medium))
+            Image(systemName: symbol).font(.system(size: symbolSize, weight: .medium))
             Text(title).lineLimit(1)
         }
         .font(.bodyText(12, weight: .semibold))
-        .foregroundStyle(isDestructive ? Color.red : (isOn ? Color.white : Palette.ink2))
+        .foregroundStyle(
+            isDestructive
+                ? Color.red
+                : (isOn ? (usesAccentWhenOn ? Palette.ink : Color.white) : Palette.ink2)
+        )
         .padding(.horizontal, 10)
         .frame(minHeight: 32)
-        .background(Capsule().fill(isOn ? Palette.control : Palette.neutralTile))
+        .background(
+            Capsule().fill(isOn ? (usesAccentWhenOn ? Palette.accent : Palette.control) : Palette.neutralTile)
+        )
     }
 
     private func moveEntryToTrash() {
@@ -311,9 +350,27 @@ struct EntryDetailView: View {
             NativeRichTextMentions.storageText(from: bodyText)
         )
         entry.tags = bodyTags
+        EntryReminderScheduler.cancel(entry)
         entry.moveToTrash()
         try? context.save()
         dismiss()
+    }
+
+    private func reminderChanged(to newValue: Date?) {
+        if newValue == nil {
+            EntryReminderScheduler.cancel(entry)
+            entry.reminderIdentifier = nil
+            entry.touch()
+            try? context.save()
+            return
+        }
+
+        entry.touch()
+        try? context.save()
+        Task { @MainActor in
+            _ = await EntryReminderScheduler.schedule(entry)
+            try? context.save()
+        }
     }
 
     private func richTextDidChange(_ plainText: String) {

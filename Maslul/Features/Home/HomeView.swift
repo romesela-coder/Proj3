@@ -28,6 +28,8 @@ struct HomeView: View {
     @State private var quickText = ""
     @State private var quickTags: [EntryTag] = []
     @State private var quickBox: EntryBox?
+    @State private var quickReminderAt: Date?
+    @State private var quickReminderDelivery: EntryReminderDelivery = .notification
     @State private var quickSelection = NSRange(location: 0, length: 0)
     @State private var viewMode: ViewMode = .calendar
     @State private var weekAnchorDate = Calendar.current.startOfDay(for: .now)
@@ -102,6 +104,8 @@ struct HomeView: View {
                     text: $quickText,
                     selectedTags: $quickTags,
                     selectedBox: $quickBox,
+                    reminderAt: $quickReminderAt,
+                    reminderDelivery: $quickReminderDelivery,
                     selection: $quickSelection,
                     availableTags: availableTags,
                     suggestedTags: suggestedTags,
@@ -386,7 +390,10 @@ struct HomeView: View {
     private func deleteCalendarEntries(at offsets: IndexSet) {
         let entriesToDelete = offsets.map { selectedEntries[$0] }
         withAnimation(Motion.spring) {
-            entriesToDelete.forEach { $0.moveToTrash() }
+            entriesToDelete.forEach {
+                EntryReminderScheduler.cancel($0)
+                $0.moveToTrash()
+            }
         }
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -405,6 +412,8 @@ struct HomeView: View {
 
     private func presentQuickCapture() {
         quickBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
+        quickReminderAt = nil
+        quickReminderDelivery = .notification
         withAnimation(Motion.spring) { isQuickCapturePresented = true }
     }
 
@@ -433,6 +442,8 @@ struct HomeView: View {
         let entry = Entry(body: body, createdAt: timestampForSubmission())
         CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.tags = quickTags
+        entry.reminderAt = quickReminderAt
+        entry.reminderDelivery = quickReminderDelivery
         EntryBoxEntryOrdering.move(
             entry,
             to: quickBox ?? EntryBoxBootstrap.inbox(in: context)
@@ -441,6 +452,12 @@ struct HomeView: View {
         entry.isGeneratingTitle = true
         context.insert(entry)
         try? context.save()
+        if entry.reminderAt != nil {
+            Task { @MainActor in
+                _ = await EntryReminderScheduler.schedule(entry)
+                try? context.save()
+            }
+        }
         Task { @MainActor in
             let generated = await LocalMetadataGenerator.title(
                 for: body,
@@ -458,6 +475,8 @@ struct HomeView: View {
         quickText = ""
         quickTags = []
         quickBox = nil
+        quickReminderAt = nil
+        quickReminderDelivery = .notification
         quickSelection = NSRange(location: 0, length: 0)
         dismissQuickCapture()
     }
@@ -516,11 +535,15 @@ private struct TodayEntryRow: View {
             .frame(width: 58)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(entry.title)
-                    .font(.bodyText(18, weight: .medium))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.leading)
+                HStack(spacing: 8) {
+                    Text(entry.title)
+                        .font(.bodyText(18, weight: .medium))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 4)
+                    EntryReminderMark(entry: entry)
+                }
 
                 if entry.title != entry.body {
                     InlineMentionText(
@@ -554,6 +577,8 @@ struct QuickCaptureBar: View {
     @Binding var text: String
     @Binding var selectedTags: [EntryTag]
     @Binding var selectedBox: EntryBox?
+    @Binding var reminderAt: Date?
+    @Binding var reminderDelivery: EntryReminderDelivery
     @Binding var selection: NSRange
     let availableTags: [EntryTag]
     let suggestedTags: [EntryTag]
@@ -565,6 +590,7 @@ struct QuickCaptureBar: View {
     @State private var editorHeight: CGFloat = 44
     @State private var isSubmitting = false
     @State private var showBoxPicker = false
+    @State private var showReminderPicker = false
     @StateObject private var dictation = SpeechDictationController()
 
     var body: some View {
@@ -620,14 +646,14 @@ struct QuickCaptureBar: View {
                 .disabled(isSubmitting)
             }
 
+            composerAccessoryRow
+
             TagMentionSuggestions(
                 text: $text,
                 selectedTags: $selectedTags,
                 tags: availableTags,
                 query: MentionText.query(in: text)
             )
-
-            composerAccessoryRow
         }
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 12)
@@ -654,8 +680,15 @@ struct QuickCaptureBar: View {
                 }
         )
         .onDisappear { dictation.stop() }
+        .environment(\.layoutDirection, .leftToRight)
         .sheet(isPresented: $showBoxPicker) {
             EntryBoxPicker(selectedBox: $selectedBox)
+        }
+        .sheet(isPresented: $showReminderPicker) {
+            EntryReminderPicker(
+                reminderAt: $reminderAt,
+                delivery: $reminderDelivery
+            )
         }
         .alert("Dictation unavailable", isPresented: Binding(
             get: { dictation.errorMessage != nil },
@@ -672,24 +705,50 @@ struct QuickCaptureBar: View {
             !selectedTags.contains { $0.persistentModelID == candidate.persistentModelID }
         }
 
-        return ScrollView(.horizontal, showsIndicators: false) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
                 Button { showBoxPicker = true } label: {
                     EntryBoxChip(box: selectedBox)
                 }
                 .buttonStyle(.plain)
 
-                if !visible.isEmpty, MentionText.query(in: text) == nil {
-                    Rectangle()
-                        .fill(Palette.line)
-                        .frame(width: 1, height: 20)
-                        .padding(.horizontal, 2)
+                Button { showReminderPicker = true } label: {
+                    HStack(spacing: 6) {
+                        Image(
+                            systemName: reminderAt == nil
+                                ? "bell"
+                                : (reminderDelivery == .alarm ? "alarm.fill" : "bell.fill")
+                        )
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(reminderAt.map(Fmt.reminderStamp) ?? "Remind")
+                            .font(.bodyText(12, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(Palette.ink)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(reminderAt == nil ? Color.white : Palette.accent)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(reminderAt == nil ? Palette.line : Palette.ink.opacity(0.06), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(reminderAt == nil ? "Add reminder" : "Edit reminder")
+            }
 
+            if !visible.isEmpty, MentionText.query(in: text) == nil {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 7) {
                     ForEach(visible) { tag in
                         Button { insertSuggested(tag) } label: {
                             MentionCard(tag: tag)
                         }
                         .buttonStyle(.plain)
+                    }
                     }
                 }
             }

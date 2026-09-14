@@ -793,6 +793,7 @@ struct TagEntriesView: View {
                 .journalListRow()
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
+                        EntryReminderScheduler.cancel(entry)
                         entry.moveToTrash()
                         try? context.save()
                     } label: {

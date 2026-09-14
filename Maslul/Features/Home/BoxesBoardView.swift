@@ -202,6 +202,7 @@ struct BoxesBoardView: View {
     }
 
     private func moveToTrash(_ entry: Entry) {
+        EntryReminderScheduler.cancel(entry)
         withAnimation(Motion.spring) { entry.moveToTrash() }
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -261,6 +262,8 @@ struct BoxDetailView: View {
     @State private var quickText = ""
     @State private var quickTags: [EntryTag] = []
     @State private var quickBox: EntryBox?
+    @State private var quickReminderAt: Date?
+    @State private var quickReminderDelivery: EntryReminderDelivery = .notification
     @State private var quickSelection = NSRange(location: 0, length: 0)
 
     private var boxEntries: [Entry] {
@@ -299,6 +302,8 @@ struct BoxDetailView: View {
                     text: $quickText,
                     selectedTags: $quickTags,
                     selectedBox: $quickBox,
+                    reminderAt: $quickReminderAt,
+                    reminderDelivery: $quickReminderDelivery,
                     selection: $quickSelection,
                     availableTags: availableTags,
                     suggestedTags: suggestedTags,
@@ -457,6 +462,7 @@ struct BoxDetailView: View {
     }
 
     private func moveToTrash(_ entry: Entry) {
+        EntryReminderScheduler.cancel(entry)
         withAnimation(Motion.spring) { entry.moveToTrash() }
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -464,6 +470,8 @@ struct BoxDetailView: View {
 
     private func presentQuickCapture() {
         quickBox = box
+        quickReminderAt = nil
+        quickReminderDelivery = .notification
         withAnimation(Motion.spring) { isQuickCapturePresented = true }
     }
 
@@ -490,12 +498,20 @@ struct BoxDetailView: View {
         let entry = Entry(body: body, createdAt: .now)
         CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.tags = quickTags
+        entry.reminderAt = quickReminderAt
+        entry.reminderDelivery = quickReminderDelivery
         EntryBoxEntryOrdering.move(entry, to: quickBox ?? box)
 
         let initialTitle = entry.titleText
         entry.isGeneratingTitle = true
         context.insert(entry)
         try? context.save()
+        if entry.reminderAt != nil {
+            Task { @MainActor in
+                _ = await EntryReminderScheduler.schedule(entry)
+                try? context.save()
+            }
+        }
 
         Task { @MainActor in
             let generated = await LocalMetadataGenerator.title(
@@ -515,6 +531,8 @@ struct BoxDetailView: View {
         quickText = ""
         quickTags = []
         quickBox = nil
+        quickReminderAt = nil
+        quickReminderDelivery = .notification
         quickSelection = NSRange(location: 0, length: 0)
         dismissQuickCapture()
     }
@@ -965,6 +983,8 @@ private struct FocusedBoxEntryCard: View {
 
                 Spacer(minLength: 8)
 
+                EntryReminderMark(entry: entry)
+
                 if entry.isSensitive {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 11))
@@ -1020,11 +1040,15 @@ private struct BoxEntryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(entry.title)
-                .font(.bodyText(15.5, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+            HStack(alignment: .top, spacing: 8) {
+                Text(entry.title)
+                    .font(.bodyText(15.5, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 4)
+                EntryReminderMark(entry: entry)
+            }
 
             if entry.title != entry.body {
                 InlineMentionText(
