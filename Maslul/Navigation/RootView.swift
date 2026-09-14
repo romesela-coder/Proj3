@@ -20,8 +20,8 @@ struct RootView: View {
         .background(Palette.ground)
         .sheet(item: $router.sheet) { route in
             switch route {
-            case .capture(let type, let date):
-                CaptureView(presetType: type, presetDate: date)
+            case .capture(let type, let date, let box):
+                CaptureView(presetType: type, presetDate: date, presetBox: box)
             case .entry(let entry):
                 EntryDetailView(entry: entry)
             case .allocation:

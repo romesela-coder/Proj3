@@ -36,14 +36,14 @@ enum MeRoute: Hashable {
 }
 
 enum SheetRoute: Identifiable {
-    case capture(EntryType?, Date?)
+    case capture(EntryType?, Date?, EntryBox?)
     case entry(Entry)
     case allocation
 
     var id: String {
         switch self {
-        case .capture(let type, let date):
-            return "capture-\(type?.rawValue ?? "free")-\(date?.timeIntervalSinceReferenceDate ?? 0)"
+        case .capture(let type, let date, let box):
+            return "capture-\(type?.rawValue ?? "free")-\(date?.timeIntervalSinceReferenceDate ?? 0)-\(box?.persistentModelID.hashValue ?? 0)"
         case .entry(let entry): return "entry-\(entry.persistentModelID.hashValue)"
         case .allocation: return "allocation"
         }
@@ -57,8 +57,8 @@ final class Router {
     var journalPath: [JournalRoute] = []
     var mePath: [MeRoute] = []
 
-    func newEntry(type: EntryType? = nil, date: Date? = nil) {
-        sheet = .capture(type, date)
+    func newEntry(type: EntryType? = nil, date: Date? = nil, box: EntryBox? = nil) {
+        sheet = .capture(type, date, box)
     }
 
     func open(_ entry: Entry) {

@@ -17,6 +17,7 @@ enum SettingsKey {
 
     static let draftBody = "maslul.draft.body"
     static let draftType = "maslul.draft.type"
+    static let draftRichText = "maslul.draft.richText"
 }
 
 enum Defaults {

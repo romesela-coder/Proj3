@@ -113,7 +113,12 @@ enum Exporter {
             if let effort = entry.effort { meta.append("מאמץ \(effort.title)") }
             if !meta.isEmpty { out += "_\(meta.joined(separator: " · "))_\n\n" }
 
-            out += "\(entry.body)\n"
+            let legacy = entry.richTextDocument
+            if legacy.isEmpty {
+                out += "\(entry.body)\n"
+            } else {
+                out += "\(EntryRichTextMarkdown.render(entry.body, document: legacy))\n"
+            }
 
             if !entry.attachmentNames.isEmpty {
                 out += "\n\(entry.attachmentNames.count) קבצים מצורפים (נשארים במכשיר)\n"
@@ -135,6 +140,7 @@ enum Exporter {
         let sensitivity: String
         let attachmentCount: Int
         let body: String
+        let richText: AttributedString?
     }
 
     private struct DocumentDTO: Encodable {
@@ -159,7 +165,8 @@ enum Exporter {
                 effort: entry.effort?.rawValue,
                 sensitivity: entry.sensitivity.rawValue,
                 attachmentCount: entry.attachmentNames.count,
-                body: entry.body
+                body: entry.body,
+                richText: entry.richTextData == nil ? nil : entry.attributedBody
             )
         }
 

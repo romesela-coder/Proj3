@@ -29,7 +29,7 @@ Do not relax these without asking the user:
 
 ## Build
 
-- Xcode 26.x recommended; iOS 17.0 deployment target.
+- Xcode 26.x required; iOS 26.0 deployment target.
 - One iPhone-only, portrait-only target and scheme: `Maslul`.
 - SwiftUI + SwiftData, no package dependencies.
 - File-system synchronized Xcode group: adding a Swift file under `Maslul/` is
@@ -80,9 +80,11 @@ of a relationship, allowing SwiftData's inverse to maintain the other.
 
 ## Mentions
 
-`InlineMentionEditor` is a `UITextView` bridge. A selected tag renders as an
-`NSTextAttachment`, while the persisted body remains readable plain text:
-`@Tag name`.
+`InlineMentionEditor` is the focused `UITextView` bridge used by compact plain
+capture and inline previews. The full entry editor uses SwiftUI's iOS 26
+`TextEditor` with an `AttributedString`, so selection, keyboard integration and
+rich-text formatting stay system-owned. The persisted body remains readable
+plain text: `@Tag name`.
 
 The contract is:
 
@@ -104,8 +106,8 @@ when modifying mentions.
 - iOS 26 uses `SpeechAnalyzer` + `DictationTranscriber` with
   `.progressiveLongDictation`, installed Speech assets, continuous final and
   volatile transcripts, and audio-format conversion when needed.
-- Earlier iOS versions use `SFSpeechRecognizer` with partial results and the
-  on-device option when the recognizer reports support.
+- The older `SFSpeechRecognizer` implementation is retained as isolated legacy
+  code, but the iOS 26 deployment target uses `SpeechAnalyzer` in production.
 
 Finalized transcript text must only grow. Volatile text may be revised by the
 recognizer, but it must not replace prior finalized phrases. Saving while
@@ -134,6 +136,8 @@ deterministic rankings based on text match, usage count, and recency.
 - Root layout direction is LTR, regardless of keyboard language.
 - New-item flows should use the compact keyboard-height composer rather than a
   mostly empty full-screen form.
+- The compact composer is also the creation surface inside a focused Box; seed
+  it with the current Box instead of routing to the legacy capture sheet.
 - Calendar and Boxes are sibling modes in `HomeView`, selected by the large
   toggle top-aligned with the title. Calendar is date-oriented; Boxes groups
   the same entries into Box shelves.
@@ -154,6 +158,9 @@ deterministic rankings based on text match, usage count, and recency.
 - Lists use native trailing swipe actions for destructive actions. A revealed
   destructive action is the confirmation unless the operation is materially
   broader than the row.
+- Calendar, Box shelves, and focused Box boards share one `Manage` menu with
+  `Reorder & delete`, `Newest first`, and `Oldest first`. Manual mode uses the
+  platform-appropriate delete affordance and must not dim row or card content.
 - Prefer native interactive dismissal and synchronized keyboard movement.
 - The desired application language is English. Some legacy Hebrew strings
   remain and should be converted deliberately without changing the direction.

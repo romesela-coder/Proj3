@@ -39,12 +39,12 @@ struct TagMentionSuggestions: View {
     @Binding var text: String
     @Binding var selectedTags: [EntryTag]
     let tags: [EntryTag]
+    let query: String?
+    var onInsert: ((EntryTag) -> Void)? = nil
 
     @Environment(\.modelContext) private var context
     @Query(sort: \TagGroup.createdAt, order: .forward) private var groups: [TagGroup]
     @State private var isChoosingGroup = false
-
-    private var query: String? { MentionText.query(in: text) }
 
     private var matches: [EntryTag] {
         guard let query else { return [] }
@@ -82,69 +82,57 @@ struct TagMentionSuggestions: View {
         if query != nil, !matches.isEmpty || canCreate {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
-                    if isChoosingGroup {
-                        Text("Add “\(proposedName)” to")
-                            .font(.bodyText(12.5, weight: .semibold))
-                            .foregroundStyle(Palette.ink2)
-
-                        ForEach(activeGroups) { group in
-                            Button { createTag(in: group) } label: {
-                                HStack(spacing: 5) {
-                                    Text(group.emoji)
-                                    Text(group.name)
-                                }
-                                .font(.bodyText(12.5, weight: .semibold))
-                                .foregroundStyle(Palette.ink)
-                                .padding(.horizontal, 11)
-                                .frame(height: TagMentionVisual.height)
-                                .background(
-                                    RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
-                                        .fill(Palette.neutralTile)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        Button { isChoosingGroup = false } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Palette.muted)
-                                .frame(width: TagMentionVisual.height, height: TagMentionVisual.height)
+                    ForEach(matches) { tag in
+                        Button { select(tag) } label: {
+                            MentionCard(tag: tag, showsGroup: true)
                         }
                         .buttonStyle(.plain)
-                    } else {
-                        ForEach(matches) { tag in
-                            Button { select(tag) } label: {
-                                MentionCard(tag: tag, showsGroup: true)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    }
 
-                        if canCreate {
-                            Button { isChoosingGroup = true } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 11, weight: .bold))
-                                    Text("Create “\(proposedName)”")
-                                }
-                                .font(.bodyText(12.5, weight: .semibold))
-                                .foregroundStyle(Palette.ink)
-                                .padding(.horizontal, 11)
-                                .frame(height: TagMentionVisual.height)
-                                .background(
-                                    RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
-                                        .fill(Palette.neutralTile)
-                                )
+                    if canCreate {
+                        Button { beginCreatingTag() } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Create “\(proposedName)”")
                             }
-                            .buttonStyle(.plain)
+                            .font(.bodyText(12.5, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                            .padding(.horizontal, 11)
+                            .frame(height: TagMentionVisual.height)
+                            .background(
+                                RoundedRectangle(cornerRadius: TagMentionVisual.cornerRadius, style: .continuous)
+                                    .fill(Palette.neutralTile)
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .environment(\.layoutDirection, .leftToRight)
-            .onChange(of: query) { _, _ in
-                if isChoosingGroup { isChoosingGroup = false }
+            .confirmationDialog(
+                "Create “\(proposedName)”",
+                isPresented: $isChoosingGroup,
+                titleVisibility: .visible
+            ) {
+                ForEach(activeGroups) { group in
+                    Button("\(group.emoji) \(group.name)") {
+                        createTag(in: group)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose a group to finish creating this tag.")
             }
+        }
+    }
+
+    private func beginCreatingTag() {
+        guard canCreate else { return }
+        if activeGroups.count == 1, let group = activeGroups.first {
+            createTag(in: group)
+        } else {
+            isChoosingGroup = true
         }
     }
 
@@ -153,7 +141,11 @@ struct TagMentionSuggestions: View {
         if !selectedTags.contains(where: { $0.persistentModelID == tag.persistentModelID }) {
             selectedTags.append(tag)
         }
-        MentionText.insert(tag, into: &text)
+        if let onInsert {
+            onInsert(tag)
+        } else {
+            MentionText.insert(tag, into: &text)
+        }
         isChoosingGroup = false
     }
 

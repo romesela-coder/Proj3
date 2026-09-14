@@ -8,6 +8,9 @@ import SwiftData
 @Model
 final class Entry {
     var body: String = ""
+    /// Versioned rich-text metadata. The plain body remains canonical and this
+    /// optional additive field makes old stores migrate without rewriting text.
+    var richTextData: Data?
     /// Short, editable headline generated locally from the note.
     var titleText: String = ""
     var createdAt: Date = Date()
@@ -59,6 +62,7 @@ final class Entry {
         project: Project? = nil
     ) {
         self.body = body
+        self.richTextData = nil
         self.titleText = Entry.makeTitle(from: body)
         self.createdAt = createdAt
         self.updatedAt = createdAt
@@ -92,6 +96,19 @@ enum CalendarEntryOrdering {
 }
 
 extension Entry {
+    var attributedBody: AttributedString {
+        get { EntryRichTextCodec.decodeAttributed(richTextData, fallback: body) }
+        set {
+            body = String(newValue.characters)
+            richTextData = EntryRichTextCodec.encodeAttributed(newValue)
+        }
+    }
+
+    var richTextDocument: EntryRichTextDocument {
+        get { EntryRichTextCodec.decode(richTextData) }
+        set { richTextData = EntryRichTextCodec.encode(newValue) }
+    }
+
     var type: EntryType? {
         get { typeRaw.flatMap(EntryType.init(rawValue:)) }
         set { typeRaw = newValue?.rawValue }
