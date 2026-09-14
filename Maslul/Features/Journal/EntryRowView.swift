@@ -55,6 +55,8 @@ struct EntryRowView: View {
                     .padding(.top, 2)
             }
 
+            EntryReminderMark(entry: entry)
+
             if entry.isSensitive {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 12))

@@ -31,6 +31,21 @@ struct RootView: View {
         .task {
             EntryBoxBootstrap.ensureDefaults(in: context)
             purgeExpiredTrash()
+            let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
+            if let identifier = EntryReminderNotificationRoute.pendingIdentifier {
+                EntryReminderNotificationRoute.pendingIdentifier = nil
+                openReminderEntry(identifier)
+            } else {
+                EntryReminderScheduler.archivePassedReminders(in: entries)
+            }
+            await EntryReminderScheduler.reconcile(entries)
+            try? context.save()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openEntryReminder)) { notification in
+            guard let rawIdentifier = notification.userInfo?[EntryReminderScheduler.notificationEntryKey] as? String,
+                  let identifier = UUID(uuidString: rawIdentifier) else { return }
+            EntryReminderNotificationRoute.pendingIdentifier = nil
+            openReminderEntry(identifier)
         }
     }
 
@@ -52,6 +67,8 @@ struct RootView: View {
                                 TagEntriesView(tag: tag)
                             case .search:
                                 GlobalSearchView()
+                            case .reminders:
+                                EntryRemindersView()
                             }
                         }
                 }
@@ -87,6 +104,19 @@ struct RootView: View {
         expired.forEach(context.delete)
         try? context.save()
     }
+
+    private func openReminderEntry(_ reminderIdentifier: UUID) {
+        let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
+        guard let entry = entries.first(where: {
+            $0.reminderIdentifier == reminderIdentifier && !$0.isTrashed
+        }) else { return }
+
+        if entry.isReminderDue {
+            EntryReminderScheduler.archive(entry)
+            try? context.save()
+        }
+        router.open(entry)
+    }
 }
 
 // MARK: - Floating dock (spec §05.06)
@@ -112,6 +142,24 @@ struct DockBar: View {
                 Spacer(minLength: 8)
 
                 VStack(spacing: 8) {
+                    Button {
+                        withAnimation(Motion.spring) {
+                            router.openReminders()
+                        }
+                    } label: {
+                        Circle()
+                            .fill(Palette.ground)
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "bell")
+                                    .font(.system(size: 19, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                            )
+                            .overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Reminders")
+
                     Button {
                         withAnimation(Motion.spring) {
                             router.openTags()

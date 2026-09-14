@@ -18,6 +18,17 @@ final class Entry {
     /// Soft deletion keeps accidental swipes recoverable for 48 hours.
     var trashedAt: Date?
 
+    /// Optional, one-shot time at which this entry should resurface.
+    /// Keeping this on Entry preserves capture as the single entry point.
+    var reminderAt: Date?
+    /// Stable across edits so rescheduling replaces the same notification.
+    var reminderIdentifier: UUID?
+    /// Nil migrates existing reminders to the quiet, backwards-compatible mode.
+    var reminderDeliveryRaw: String?
+    /// The most recent reminder that already fired. Kept locally so the entry
+    /// can be found and scheduled again from the Reminders archive.
+    var archivedReminderAt: Date?
+
     /// Ephemeral UI state while the local model replaces the fallback title.
     @Transient var isGeneratingTitle = false
 
@@ -67,6 +78,10 @@ final class Entry {
         self.createdAt = createdAt
         self.updatedAt = createdAt
         self.trashedAt = nil
+        self.reminderAt = nil
+        self.reminderIdentifier = nil
+        self.reminderDeliveryRaw = nil
+        self.archivedReminderAt = nil
         self.iconSymbol = nil
         self.typeRaw = type?.rawValue
         self.project = project
@@ -138,6 +153,18 @@ extension Entry {
 
     var isTrashed: Bool { trashedAt != nil }
 
+    var hasReminder: Bool { reminderAt != nil }
+
+    var isReminderDue: Bool {
+        guard let reminderAt else { return false }
+        return reminderAt <= .now
+    }
+
+    var reminderDelivery: EntryReminderDelivery {
+        get { reminderDeliveryRaw.flatMap(EntryReminderDelivery.init(rawValue:)) ?? .notification }
+        set { reminderDeliveryRaw = newValue.rawValue }
+    }
+
     var title: String {
         if !titleText.isEmpty { return titleText }
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -165,4 +192,32 @@ extension Entry {
     }
 
     static let trashLifetime: TimeInterval = 2 * 24 * 60 * 60
+}
+
+enum EntryReminderDelivery: String, CaseIterable, Identifiable {
+    case notification
+    case alarm
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .notification: "Notification"
+        case .alarm: "Alarm"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .notification: "A standard alert and sound"
+        case .alarm: "Sounds until you stop it"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .notification: "bell"
+        case .alarm: "alarm"
+        }
+    }
 }

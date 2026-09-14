@@ -10,8 +10,18 @@
 		AA0000000000000000000006 /* Maslul.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Maslul.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA0000000000000000000010 /* Exceptions for "Maslul" folder in "Maslul" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AA0000000000000000000005 /* Maslul */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA0000000000000000000004 /* Maslul */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Maslul; sourceTree = "<group>"; };
+		AA0000000000000000000004 /* Maslul */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AA0000000000000000000010 /* Exceptions for "Maslul" folder in "Maslul" target */, ); explicitFileTypes = {}; explicitFolders = (); path = Maslul; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -251,6 +261,7 @@
 				DEVELOPMENT_TEAM = 77JL873V3W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Maslul/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "מסלול";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Maslul uses the microphone to turn your speech into an entry.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Maslul uses speech recognition to transcribe your dictation.";
@@ -283,6 +294,7 @@
 				DEVELOPMENT_TEAM = 77JL873V3W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Maslul/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "מסלול";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Maslul uses the microphone to turn your speech into an entry.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Maslul uses speech recognition to transcribe your dictation.";

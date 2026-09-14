@@ -231,6 +231,7 @@ struct JournalView: View {
     }
 
     private func moveToTrash(_ entry: Entry) {
+        EntryReminderScheduler.cancel(entry)
         entry.moveToTrash()
         try? context.save()
     }
@@ -301,5 +302,11 @@ struct TrashView: View {
     private func restore(_ entry: Entry) {
         entry.restoreFromTrash()
         try? context.save()
+        if (entry.reminderAt ?? .distantPast) > .now {
+            Task { @MainActor in
+                _ = await EntryReminderScheduler.schedule(entry)
+                try? context.save()
+            }
+        }
     }
 }
