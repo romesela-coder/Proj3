@@ -5,10 +5,12 @@ learning, friction, people, projects, and recurring themes. The current build
 is organized around a fast keyboard-first capture flow, reusable tags, inline
 mentions, and on-device assistance.
 
-The app has no account, server, analytics, CloudKit container, third-party SDK,
-or application networking code. Journal data and attachments are stored in the
-app container. Export only happens when the user explicitly opens the system
-share sheet.
+The current app has no account, server, analytics, CloudKit container,
+third-party SDK, or application networking code. Journal data and attachments
+are stored in the app container. Export only happens when the user explicitly
+opens the system share sheet. The approved pre-alpha roadmap adds a packaged
+on-device bilingual model and explicit privacy-safe event analytics without
+uploading journal content; see `ROADMAP.md`.
 
 ## Run the app
 
@@ -52,6 +54,8 @@ starts dictation.
 - Locally generated entry titles with a deterministic fallback.
 - A reading-first entry sheet with editable title and text, date, privacy,
   tags, and local photo attachments.
+- Per-entry Notification and Alarm reminders with presets, a custom date/time,
+  editing, removal, deep links, and archived reminder history.
 - A single Box assignment for every entry. The Box icon is the entry's leading
   visual identity in Calendar and Journal.
 - New entries preserve the selected day while storing the real capture time;
@@ -116,7 +120,7 @@ The locale follows the current keyboard (`he-IL`, `en-US`, or the reported
 keyboard language). The app requests Speech assets through the system when a
 supported language is not already installed.
 
-The AI layer is optional and failure-safe:
+The current AI layer is optional and failure-safe:
 
 - `FoundationModelsSuggester` uses Apple's on-device model for tidy
   classification when the device and OS support it.
@@ -127,6 +131,12 @@ The AI layer is optional and failure-safe:
 Foundation Models language support is controlled by the OS. In particular,
 long Hebrew entries may use the deterministic title fallback even when Apple
 Intelligence is otherwise available.
+
+The next planned implementation project replaces this device-dependent path
+with one packaged on-device English/Hebrew model behind the existing
+interfaces. The current candidate is Qwen3 0.6B 4-bit through `mlx-swift-lm`,
+with no fine-tuning in the initial implementation and deterministic fallbacks
+preserved. See `ROADMAP.md` for the benchmark and rollout plan.
 
 ## Data model and migration state
 
@@ -170,6 +180,14 @@ Maslul/
 
 ## Known gaps
 
+- The legacy quarterly Goals and weekly ritual/allocation products are not the
+  desired product. Goals and Weekly Review will be redesigned from first
+  principles as the core career-reflection loop.
+- Empty Journal/Calendar states do not yet provide prompt CTAs that help a new
+  user begin a useful capture habit.
+- Product event analytics is not implemented yet. The approved plan is an
+  explicit event-only integration before external alpha, with no session
+  replay, autocapture, or journal content transmission.
 - AI-assisted tag snapping after typing or dictation is not implemented yet;
   the current mention flow is explicit and the suggestion row is ranked
   locally.
