@@ -5,23 +5,27 @@ local-first SwiftUI/SwiftData app with fast capture, reusable tags, inline
 mentions, dictation, weekly reflection, reports, goals, and export.
 
 Read `README.md` for the product and build overview, and `HANDOFF.md` for the
-current implementation state and regression checklist. Follow the repository's
+current implementation state and regression checklist. Read `ROADMAP.md` for
+the canonical product decisions and exact next project. Follow the repository's
 applicable `AGENTS.md` instructions for GitHub account separation and workflow.
 
 ## Product constraints
 
 Do not relax these without asking the user:
 
-1. No account, server, analytics, CloudKit model container, third-party SDK, or
-   application networking code.
+1. No user account, custom application server, cross-device sync, or CloudKit
+   model container without a new product decision. The approved roadmap does
+   permit a packaged on-device model and explicit event analytics before alpha.
 2. Journal data and attachments stay in the app container. Export is an
-   explicit user action through the system share sheet.
+   explicit user action through the system share sheet. Analytics must never
+   transmit journal text, user-created names, queries, attachments, or other
+   content.
 3. AI must be on device and optional. Every AI-assisted path needs a useful
    deterministic or heuristic fallback.
 4. Entries use recoverable deletion: Trash for 48 hours, then purge. Directly
    deleting a tag or group must never delete an entry.
-5. No streaks, guilt states, or daily nagging. The product has one weekly
-   reminder flow.
+5. No streaks, guilt states, or daily nagging. Per-entry reminders are supported;
+   the future Weekly Review is a separate core reflection flow.
 6. Future widgets must never expose entry text—only counters, tag/project names,
    and non-sensitive labels.
 7. The application root is LTR and uses an English locale. Hebrew input is
@@ -31,7 +35,8 @@ Do not relax these without asking the user:
 
 - Xcode 26.x required; iOS 26.0 deployment target.
 - One iPhone-only, portrait-only target and scheme: `Maslul`.
-- SwiftUI + SwiftData, no package dependencies.
+- SwiftUI + SwiftData. There are currently no package dependencies; the next
+  approved project may add `mlx-swift-lm` for packaged local inference.
 - File-system synchronized Xcode group: adding a Swift file under `Maslul/` is
   enough.
 - Physical-device builds require microphone and speech-recognition usage
@@ -130,6 +135,18 @@ can legitimately fall back even on an otherwise eligible device.
 
 AI tag snapping is not implemented yet. Current tag suggestions are local,
 deterministic rankings based on text match, usage count, and recency.
+
+The approved next project is to move small generative tasks to one packaged
+English/Hebrew model that does not depend on Apple Intelligence availability.
+Start with `mlx-swift-lm` and `mlx-community/Qwen3-0.6B-4bit`. Do not fine-tune
+initially. Use short task-specific prompt contracts, constrained outputs,
+validation, and deterministic fallbacks. Benchmark real-shaped Hebrew and
+English inputs on the connected iPhone before replacing the existing provider.
+See `ROADMAP.md` for the exact sequence and definition of done.
+
+Goals and Weekly Review are core future product pillars, but their legacy
+implementations are not the desired design. Do not extend the old quarterly
+Goals or ritual/allocation flows before their dedicated product sessions.
 
 ## UI and interaction conventions
 

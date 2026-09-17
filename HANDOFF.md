@@ -1,13 +1,14 @@
 # Maslul handoff
 
-Updated September 14, 2026.
+Updated September 18, 2026.
 
 ## Current baseline
 
 The project is an actively tested iPhone app, not an uncompiled prototype. The
 generalized tags, rich inline mentions, native rich-text editor, global search,
-Boxes board, compact entry sheet, Trash, and dictation work have all been built
-and exercised on a physical iPhone with Xcode 26.4 / iOS 26.
+Boxes board, compact entry sheet, Trash, dictation, and per-entry reminders
+have all been built and exercised on a physical iPhone with Xcode 26.4 / iOS
+26.
 
 The current product loop is:
 
@@ -19,8 +20,15 @@ The current product loop is:
 4. Edit the entry in a compact sheet and optionally change its box, date,
    privacy, title, tags, or attachments.
 5. Retrieve entries by day in Calendar, by filing context in Boxes, or through
-   global search. The older ritual, allocation, goals, and reports surfaces are
-   legacy product areas and should not be treated as the direction for new work.
+   global search, or return to one through a scheduled reminder. The older
+   ritual, allocation, goals, and reports surfaces are legacy implementations;
+   Goals and Weekly Review remain product pillars but will be rebuilt rather
+   than extended in their current form.
+
+The canonical forward-looking plan is `ROADMAP.md`. It records the September
+18 strategy decisions about the local bilingual model, Goals, Weekly Review,
+empty-state activation, analytics, individual Apple Developer enrollment,
+TestFlight alpha, and App Store launch.
 
 ## Build and device check
 
@@ -86,6 +94,10 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
   `SpeechAnalyzer` dictation and the legacy recognizer fallback.
 - `Services/LocalMetadataGenerator.swift` owns title/icon generation and
   deterministic fallbacks.
+- `Services/EntryReminderScheduler.swift` owns notification and AlarmKit
+  authorization, scheduling, cancellation, and reconciliation.
+- `Features/Reminders/` owns per-entry reminder creation and the
+  Upcoming/Archived reminder list.
 - `Features/Tags/TagsView.swift` owns tag-group navigation, editing, colors,
   uniqueness guardrails, and deletion.
 
@@ -106,8 +118,10 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
 - Quick capture combines the selected date with the current clock time. Do not
   regress new entries to `12:00 AM`; old midnight entries cannot be repaired
   because their original time was never stored.
-- The app has no account, CloudKit container, analytics, third-party SDK, or
-  application networking layer.
+- The shipping code currently has no account, CloudKit container, analytics,
+  third-party SDK, or general application networking layer. The approved
+  roadmap adds a packaged on-device model and explicit privacy-safe analytics
+  before external alpha; see `ROADMAP.md` for the boundaries.
 - Foundation Models and Speech failures must leave a usable deterministic or
   system fallback.
 
@@ -148,14 +162,25 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
     edge over the cards.
 17. Open a focused Box, tap `+`, and verify the compact composer follows the
     keyboard with that Box selected rather than opening the legacy capture sheet.
+18. Schedule, edit, and remove both Notification and Alarm reminders. Verify
+    denial recovery opens the relevant Settings page and trashed entries cancel
+    scheduled delivery.
+19. Open the Reminders list and verify Upcoming and Archived entries, consistent
+    bell styling, deep-link navigation, and rescheduling of an archived reminder.
 
 ## Product roadmap
 
-This roadmap captures the product decisions made from the ideas stored in the
-`Fixes` and `Add to the app` Boxes. Each numbered item is its own project. Ship
-and test it in small slices rather than combining the roadmap into one large
-change. After every completed implementation slice, build, install, and launch
-the refreshed app on the connected iPhone.
+`ROADMAP.md` is now the canonical roadmap. It supersedes the older ordering
+that deferred local AI, Goals, and Weekly Review. The current agreed sequence
+is: packaged bilingual local-model spike; dedicated Goals product session and
+rebuild; dedicated Weekly Review product session and rebuild; empty-state
+activation; analytics and alpha readiness; TestFlight alpha; feedback sprint;
+and App Store launch.
+
+The immediate next implementation project is the local-model spike described
+in `ROADMAP.md`. Do not start by extending the legacy Goals or ritual code.
+
+The projects below are retained as implementation history.
 
 ### 1. Reliability and long-form text
 
@@ -235,10 +260,15 @@ Status: completed September 14, 2026.
 
 ### 5. Per-entry reminders
 
-Allow an entry to schedule a local notification using either a small set of
-useful preset times or a custom date and time. This is separate from the Weekly
-Interview feature. Reminder creation, editing, deletion, notification
-permission, and behavior after an entry is trashed all need explicit handling.
+Status: completed September 15, 2026.
+
+- [x] Schedule a Notification or Alarm through presets or a custom date/time.
+- [x] Edit and remove a reminder from its entry.
+- [x] Archive elapsed reminders rather than deleting their history.
+- [x] Deep-link back to the exact entry and reconcile schedules on launch.
+- [x] Handle permission denial with a route to the relevant Settings page.
+- [x] Keep reminder state consistent across capture, entry detail, Calendar,
+  Boxes, search, and the dedicated reminder list.
 
 ### 6. Sensory design
 
@@ -255,30 +285,29 @@ not as unrelated feedback calls scattered through feature code.
 The goal is quiet richness: users should feel polish without consciously
 noticing repeated effects.
 
-### 7. Weekly Interview
+### 7. Weekly Interview — superseded
 
-Treat Weekly Interview as a separate future feature, not as recurring entry
-reminders. It may eventually support configurable questions, scheduling,
-custom prompts, recurrence, and snooze. The existing weekly reminder/ritual
-code is not automatically the desired product and must be reassessed before
-reuse.
+The old feature definition is superseded by the Weekly Review pillar in
+`ROADMAP.md`. It remains separate from recurring entry reminders. The existing
+weekly reminder/ritual/allocation code is not the desired product and must be
+retired or rebuilt rather than extended automatically.
 
-### 8. Goals rebuild
+### 8. Goals rebuild — promoted to a core pillar
 
-Goals is a large future feature and is deliberately out of the current scope.
-Remove the legacy Goals product when this project begins and design it again
-from first principles: define a goal, track its state or progress, and build a
-timeline of entries and smaller events related to it. A Goal may eventually be
-implemented on top of Box-like primitives, but that is an architectural option
-rather than a settled user-facing model.
+Remove the legacy Goals product and design its replacement from first
+principles in a dedicated product session. A Goal may reuse Box/Tag primitives,
+but it must be richer than another category: related entries, a timeline,
+movement, friction, decisions, and next actions should feed the Weekly Review.
+Do not settle the exact model without the dedicated session.
 
-### 9. AI and Hebrew intelligence
+### 9. Local English and Hebrew intelligence — immediate next project
 
-AI is explicitly deferred and must not be treated as the next product step. It
-is a separate project that can later cover Hebrew-aware metadata, post-capture
-tag snapping, suggestions for new tags, and semantic search. Preserve the
-current deterministic fallbacks and do not make capture, save, or retrieval
-depend on model availability.
+Replace Apple-Intelligence-dependent behavior with one small packaged on-device
+model for every supported user. Start with `mlx-swift-lm` and the ready-made
+Qwen3 0.6B 4-bit model; do not fine-tune initially. Keep prompts narrow,
+validate outputs, benchmark English and Hebrew on a physical iPhone, and
+preserve deterministic fallbacks. Full requirements and the definition of done
+are in `ROADMAP.md`.
 
 ## Continuing debt
 
@@ -286,7 +315,8 @@ The generalized tag model currently coexists with legacy `Project` and
 `EntryType` fields. Journal filters, tidy suggestions, reports, and legacy goals
 still depend on those fields. Do not remove them until those consumers have
 been migrated and historical data has a tested conversion path. The Goals
-rebuild above should not accidentally legitimize or extend the old Goals model.
+rebuild must retire the old Goal product rather than accidentally legitimize or
+extend it.
 
 Some older screens still contain Hebrew copy despite the current LTR English
 direction. Treat that as explicit localization/design debt, not a reason to
