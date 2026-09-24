@@ -61,8 +61,6 @@ struct TagsView: View {
             }
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .task { TagBootstrap.ensureDefaults(in: context, projects: projects) }
@@ -292,8 +290,6 @@ private struct TagGroupDetailView: View {
             }
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .sheet(item: $editingTag) { tag in TagEditView(tag: tag) }
         .sheet(item: $editingGroup) { group in TagGroupEditView(group: group) }
     }
@@ -557,7 +553,6 @@ private func editorField(
         .frame(maxWidth: width ?? .infinity, minHeight: 50, alignment: .leading)
         .background(Capsule().fill(Color.white))
         .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
-        .environment(\.layoutDirection, .leftToRight)
     }
 }
 
@@ -644,7 +639,6 @@ private struct InlineCreateBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 8)
         .padding(.bottom, 6)
-        .environment(\.layoutDirection, .leftToRight)
         .task {
             try? await Task.sleep(for: .milliseconds(160))
             isFocused = true
@@ -726,7 +720,5 @@ private func editorShell<Content: View>(
     .padding(.horizontal, Metrics.hMargin)
     .padding(.top, 20)
     .screenBackground()
-    .environment(\.layoutDirection, .leftToRight)
-    .environment(\.locale, Locale(identifier: "en_US"))
     .presentationDetents([.height(height)])
 }

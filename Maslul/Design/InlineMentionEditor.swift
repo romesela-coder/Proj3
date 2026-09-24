@@ -1400,6 +1400,5 @@ struct InlineMentionText: View {
         )
         .frame(height: max(measuredHeight, mentionAppearance.height))
         .clipped()
-        .environment(\.layoutDirection, .leftToRight)
     }
 }

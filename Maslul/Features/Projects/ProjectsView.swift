@@ -253,7 +253,6 @@ struct ProjectEditView: View {
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 20)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
         .presentationDetents([.medium, .large])
     }
 

@@ -14,7 +14,6 @@ struct MeView: View {
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse) private var entries: [Entry]
     @Query(filter: #Predicate<Entry> { $0.trashedAt != nil }) private var trashedEntries: [Entry]
     @Query private var projects: [Project]
-    @Query private var goals: [Goal]
     @Query(sort: \WeeklyAllocation.weekStart, order: .reverse)
     private var allocations: [WeeklyAllocation]
 
@@ -60,15 +59,6 @@ struct MeView: View {
                         symbol: "chart.bar",
                         title: "דוח הקצאת זמן",
                         subtitle: reportSubtitle
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button { router.mePath.append(.goals) } label: {
-                    SettingRow(
-                        symbol: "target",
-                        title: "מטרות מול מציאות",
-                        subtitle: goalsSubtitle
                     )
                 }
                 .buttonStyle(.plain)
@@ -262,11 +252,6 @@ struct MeView: View {
 
     private var reportSubtitle: String {
         allocations.isEmpty ? "אין עדיין נתונים" : "\(allocations.count) שבועות מדווחים"
-    }
-
-    private var goalsSubtitle: String {
-        let open = goals.filter(\.isCurrent).count
-        return open == 0 ? "לא הוגדרו מטרות לרבעון" : "\(open) פעילות · \(Quarter.current().shortTitle)"
     }
 
     private var timeText: String {

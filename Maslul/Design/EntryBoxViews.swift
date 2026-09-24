@@ -22,7 +22,6 @@ struct EntryBoxTile: View {
                 RoundedRectangle(cornerRadius: size * 0.29, style: .continuous)
                     .stroke(Palette.lineSoft, lineWidth: 1)
             )
-            .environment(\.layoutDirection, .leftToRight)
             .accessibilityLabel(box?.name ?? "Inbox")
     }
 }
@@ -88,8 +87,6 @@ struct EntryBoxPicker: View {
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

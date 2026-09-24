@@ -12,11 +12,14 @@ struct EntryDetailView: View {
 
     @Query(sort: \Project.createdAt, order: .forward)
     private var projects: [Project]
+    @Query(sort: \Goal.createdAt, order: .forward)
+    private var goals: [Goal]
 
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
 
     @State private var showProjectPicker = false
+    @State private var showGoalPicker = false
     @State private var showDatePicker = false
     @State private var showReminderPicker = false
     @State private var showBoxPicker = false
@@ -92,7 +95,6 @@ struct EntryDetailView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .environment(\.layoutDirection, .leftToRight)
                     .padding(.bottom, 16)
 
                     bodyCard(minimumEditorHeight: max(150, proxy.size.height * 0.52))
@@ -106,7 +108,6 @@ struct EntryDetailView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
         .presentationDetents([.fraction(0.68), .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
         .presentationBackground(Palette.ground)
@@ -115,6 +116,15 @@ struct EntryDetailView: View {
                 Button(candidate.name) { mutate { entry.project = candidate } }
             }
             Button("No project", role: .destructive) { mutate { entry.project = nil } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Goal", isPresented: $showGoalPicker, titleVisibility: .visible) {
+            ForEach(goals.filter { ($0.isTrack && $0.isOpen) || $0.persistentModelID == entry.goal?.persistentModelID }) { goal in
+                Button(goal.title) { mutate { entry.goal = goal } }
+            }
+            if entry.goal != nil {
+                Button("No goal") { mutate { entry.goal = nil } }
+            }
             Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showDatePicker) {
@@ -189,6 +199,16 @@ struct EntryDetailView: View {
                 .buttonStyle(.plain)
             }
 
+            metadataGroup("GOAL") {
+                Button { showGoalPicker = true } label: {
+                    Chip(
+                        title: entry.goal.map { "\($0.emoji) \($0.title)" } ?? "+ Goal",
+                        isOn: entry.goal != nil
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
             metadataGroup("ORIGIN & EFFORT") {
                 chipFlow {
                     Chip(title: entry.originOverride?.shortTitle ?? "From project", isOn: entry.originOverride != nil) {
@@ -206,7 +226,6 @@ struct EntryDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .padding(20)
         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).stroke(Palette.cardLine, lineWidth: 1))
@@ -219,13 +238,11 @@ struct EntryDetailView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
     }
 
     private func chipFlow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ChipFlow(spacing: 8, rowSpacing: 10) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.layoutDirection, .leftToRight)
     }
 
     private func bodyCard(minimumEditorHeight: CGFloat) -> some View {
@@ -265,7 +282,6 @@ struct EntryDetailView: View {
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .padding(.bottom, 16)
     }
 
@@ -513,7 +529,6 @@ struct EntryDetailView: View {
                     .foregroundStyle(Palette.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }
@@ -564,7 +579,6 @@ struct EntryDetailView: View {
                 .padding(.bottom, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .overlay(alignment: .top) {
             Rectangle().fill(Palette.lineSoft).frame(height: 1)
         }

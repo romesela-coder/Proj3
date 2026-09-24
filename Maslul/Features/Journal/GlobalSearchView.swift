@@ -164,8 +164,6 @@ struct GlobalSearchView: View {
             }
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .task {
@@ -715,8 +713,6 @@ private struct SearchDateRangeSheet: View {
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 16)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .presentationDetents([.height(330)])
         .presentationDragIndicator(.visible)
     }
@@ -746,8 +742,6 @@ struct TagEntriesView: View {
             }
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
     }

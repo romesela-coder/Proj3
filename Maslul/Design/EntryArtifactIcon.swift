@@ -60,7 +60,6 @@ struct EntryIconTile: View {
             }
         }
         .frame(width: size, height: size)
-        .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(customSymbol == nil ? artifact.accessibilityLabel : "Custom entry icon")
         .accessibilityValue(needsAttention ? "Needs attention" : "")
@@ -178,8 +177,6 @@ struct EntryIconPicker: View {
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .presentationDetents([.height(410)])
         .presentationDragIndicator(.visible)
     }

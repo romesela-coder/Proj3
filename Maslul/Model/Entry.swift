@@ -59,6 +59,13 @@ final class Entry {
     /// Independent manual position inside a Calendar day.
     var calendarSortIndex: Int = 0
 
+    /// Optional prompt context for a user-initiated Track answer. The body is
+    /// still a normal journal entry; retaining the prompt lets the timeline
+    /// explain what the user was responding to and gives future local ranking
+    /// a private history of which questions have already been used.
+    var reflectionPromptID: String?
+    var reflectionPromptText: String?
+
     @Relationship(deleteRule: .nullify, inverse: \EntryTag.entries)
     var tags: [EntryTag] = []
 
@@ -88,6 +95,8 @@ final class Entry {
         self.box = nil
         self.boxSortIndex = 0
         self.calendarSortIndex = 0
+        self.reflectionPromptID = nil
+        self.reflectionPromptText = nil
         self.tags = []
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []

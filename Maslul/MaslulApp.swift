@@ -33,8 +33,11 @@ struct MaslulApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // The current UI is English. Keep layout and text alignment
+                // at the app boundary instead of patching each new screen.
                 .environment(\.layoutDirection, .leftToRight)
                 .environment(\.locale, Locale(identifier: "en_US"))
+                .multilineTextAlignment(.leading)
                 .tint(Palette.ink)
                 .preferredColorScheme(.light)
         }

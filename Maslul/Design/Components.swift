@@ -32,7 +32,6 @@ struct CircleButton: View {
                 }
             }
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
-            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }

@@ -256,12 +256,17 @@ struct BoxDetailView: View {
 
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
+    @Query(sort: \Goal.createdAt, order: .forward)
+    private var goals: [Goal]
 
     @State private var isReordering = false
     @State private var isQuickCapturePresented = false
     @State private var quickText = ""
     @State private var quickTags: [EntryTag] = []
     @State private var quickBox: EntryBox?
+    @State private var quickGoal: Goal?
+    @State private var quickQuestion: TrackQuestion?
+    @State private var isChoosingDirection = false
     @State private var quickReminderAt: Date?
     @State private var quickReminderDelivery: EntryReminderDelivery = .notification
     @State private var quickSelection = NSRange(location: 0, length: 0)
@@ -298,28 +303,45 @@ struct BoxDetailView: View {
             }
 
             if isQuickCapturePresented {
-                QuickCaptureBar(
-                    text: $quickText,
-                    selectedTags: $quickTags,
-                    selectedBox: $quickBox,
-                    reminderAt: $quickReminderAt,
-                    reminderDelivery: $quickReminderDelivery,
-                    selection: $quickSelection,
-                    availableTags: availableTags,
-                    suggestedTags: suggestedTags,
-                    save: saveQuickEntry,
-                    dismiss: dismissQuickCaptureInteractively
-                )
+                VStack(spacing: 9) {
+                    if quickQuestion == nil {
+                        EntryDirectionAccessory(open: openDirections)
+                    }
+                    QuickCaptureBar(
+                        text: $quickText,
+                        selectedTags: $quickTags,
+                        selectedBox: $quickBox,
+                        reminderAt: $quickReminderAt,
+                        reminderDelivery: $quickReminderDelivery,
+                        selection: $quickSelection,
+                        selectedGoal: $quickGoal,
+                        availableGoals: goals.filter { $0.isTrack && $0.isOpen },
+                        goalIsFixed: false,
+                        availableTags: availableTags,
+                        prompt: quickQuestion?.text,
+                        save: saveQuickEntry,
+                        dismiss: dismissQuickCaptureInteractively,
+                        clearPrompt: { quickQuestion = nil }
+                    )
+                }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .screenBackground()
         .withDock(
-            isVisible: !isQuickCapturePresented,
+            isVisible: !isQuickCapturePresented && !isChoosingDirection,
             composeAction: presentQuickCapture
         )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $isChoosingDirection, onDismiss: {
+            withAnimation(Motion.spring) { isQuickCapturePresented = true }
+        }) {
+            GoalDirectionsView { direction in
+                quickQuestion = direction
+                isChoosingDirection = false
+            }
+        }
     }
 
     private var header: some View {
@@ -470,9 +492,16 @@ struct BoxDetailView: View {
 
     private func presentQuickCapture() {
         quickBox = box
+        quickGoal = nil
+        quickQuestion = nil
         quickReminderAt = nil
         quickReminderDelivery = .notification
         withAnimation(Motion.spring) { isQuickCapturePresented = true }
+    }
+
+    private func openDirections() {
+        isQuickCapturePresented = false
+        isChoosingDirection = true
     }
 
     private func dismissQuickCapture() {
@@ -498,6 +527,9 @@ struct BoxDetailView: View {
         let entry = Entry(body: body, createdAt: .now)
         CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.tags = quickTags
+        entry.goal = quickGoal
+        entry.reflectionPromptID = quickQuestion?.id
+        entry.reflectionPromptText = quickQuestion?.text
         entry.reminderAt = quickReminderAt
         entry.reminderDelivery = quickReminderDelivery
         EntryBoxEntryOrdering.move(entry, to: quickBox ?? box)
@@ -531,45 +563,12 @@ struct BoxDetailView: View {
         quickText = ""
         quickTags = []
         quickBox = nil
+        quickGoal = nil
+        quickQuestion = nil
         quickReminderAt = nil
         quickReminderDelivery = .notification
         quickSelection = NSRange(location: 0, length: 0)
         dismissQuickCapture()
-    }
-
-    private var suggestedTags: [EntryTag] {
-        let active = availableTags.filter { !$0.isArchived && TagNameRules.isValid($0.name) }
-        var usage: [PersistentIdentifier: (count: Int, recency: Int)] = [:]
-        for (index, entry) in entries.prefix(100).enumerated() {
-            for tag in entry.tags {
-                let current = usage[tag.persistentModelID] ?? (0, 0)
-                usage[tag.persistentModelID] = (
-                    current.count + 1,
-                    max(current.recency, 100 - index)
-                )
-            }
-        }
-
-        let normalizedText = TagNameRules.canonical(quickText)
-        var seen: Set<String> = []
-        return active
-            .filter { seen.insert(TagNameRules.canonical($0.name)).inserted }
-            .sorted { lhs, rhs in
-                let left = usage[lhs.persistentModelID] ?? (0, 0)
-                let right = usage[rhs.persistentModelID] ?? (0, 0)
-                let leftMentioned = !normalizedText.isEmpty &&
-                    normalizedText.contains(TagNameRules.canonical(lhs.name))
-                let rightMentioned = !normalizedText.isEmpty &&
-                    normalizedText.contains(TagNameRules.canonical(rhs.name))
-                let leftScore = (leftMentioned ? 10_000 : 0) + left.count * 100 + left.recency
-                let rightScore = (rightMentioned ? 10_000 : 0) + right.count * 100 + right.recency
-                if leftScore == rightScore {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return leftScore > rightScore
-            }
-            .prefix(5)
-            .map { $0 }
     }
 
 }

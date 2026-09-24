@@ -35,8 +35,6 @@ struct EntryRemindersView: View {
         .withDock()
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .task {
             EntryReminderScheduler.archivePassedReminders(in: entries)
             try? context.save()
@@ -148,7 +146,6 @@ struct EntryRemindersView: View {
             .padding(.horizontal, Metrics.hMargin)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .environment(\.layoutDirection, .leftToRight)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(Palette.lineSoft).frame(height: 1)
             }
