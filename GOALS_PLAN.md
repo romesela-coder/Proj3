@@ -1,32 +1,29 @@
-# Goals: first iteration and next decisions
+# Goals and journal: checkpoint experiment
 
-## Core loop
+## Product model
 
-1. Create a goal. Only the name is required; motivation, desired change, and current challenge are optional context.
-2. Open the goal to see its entries as a timeline.
-3. Write directly, choose a prompt, or start a “Nothing moved” check-in. All three save the same ordinary Entry linked to that goal. Silence is never interpreted as no progress.
-4. A spontaneous entry can also be linked to an existing goal from the composer. Its box remains its location; its goal is an additional relationship. Tags remain available through @mention without an always-visible preview.
+- An **Entry** is a dated journal record. The global + always starts an Entry. It may have no Goal, a Goal, or a Goal plus a Checkpoint. It remains one record in the daily journal and can also appear in the Goal timeline and a Checkpoint shelf.
+- A **Goal** is the home for a specific intention. Its screen has a user-ordered roadmap and a chronological Entry timeline.
+- A **Checkpoint** is a manually created plan step. It can be a small task with zero Entries or a larger milestone with many. Its order is manual; an optional target date is metadata and never changes silently when the step is moved. Completion is explicit.
+- **Boxes** remain intact during this experiment. They are not automatically equivalent to Checkpoints: names such as Inbox and Done describe workflow states, while some other Boxes may describe work areas rather than finishable milestones.
 
-The Goals overview shows each goal's latest entry, including an honest no-progress check-in. Questions are visible only inside a specific goal and automatically inherit its link.
+## Implemented in this slice
 
-## Included in iteration 1
+- Create, edit, delete, complete/reopen, and reorder Checkpoints inside a Goal. Deleting a Checkpoint leaves its Entries in the Goal and journal.
+- Create an Entry from a Checkpoint with its Goal and Checkpoint links preselected, or add/change its Checkpoint later in Entry details. A Goal Entry does not require a Checkpoint.
+- Show linked Entries as the same small horizontal cards used on the Boxes board, with a vertical roadmap rail. The existing chronological Goal timeline remains below the roadmap.
+- Optional **Use an existing Box** bridge: the user previews a Box, then creates a new Checkpoint with its name. Only Entries with no Goal or already in this Goal and no Checkpoint are linked. The Box, its membership, other Goals, and Entry content are preserved. Nothing is imported automatically.
+- The old Boxes screen and composer classification remain accessible while this layout is evaluated.
 
-- Goal-first overview and creation flow.
-- Optional goal context fields.
-- Goal detail with 4 curated prompts, direct writing, explicit no-progress check-in, and clickable Entry timeline.
-- Goal selection while capturing or editing an Entry.
+The code state before this experiment is saved in commit `38b8e5f`. A copy of the on-device store and attachments was taken before adding the Checkpoint schema. A Git rollback does not itself roll back on-device data.
 
-Questions are currently selected from the hard-coded bank. No Entry is generated automatically, and no journal content is sent to a server in this iteration.
+## Next product decisions
 
-## Next slice: external model
+- Whether the two main destinations should be named Goals and Journal, and how the legacy Boxes view should remain accessible without overloading Entry capture.
+- Whether a finished Checkpoint should also appear as a dated event in the Goal's chronological timeline. Currently it shows as completed in the roadmap only.
+- Whether Goal creation should offer a batch planning flow for several Checkpoints.
+- Whether a Box should be convertible into a Goal-level area or tag when it does not represent a finishable Checkpoint.
 
-The first model job should be narrow: rank 4–6 question IDs from the curated bank for one goal. Inputs should be limited to the goal's user-written context and a bounded, user-approved set of recent entries. The response should contain IDs and optional short rationale, not generated journal entries. Keep a local fallback if offline, unavailable, or declined.
+## Later: external model
 
-Before connecting an API, decide on provider, backend/key custody, data-retention policy, opt-in scope, cost limits, failure behavior, and replacement copy for the app's current “nothing leaves the device” privacy promise. Never embed a shared API secret in the iOS app.
-
-## Later slices
-
-- Goal-specific recurring check-ins: a separate schedule opens the goal's composer or chosen prompt; it never silently creates an Entry.
-- Agent/chat: start read-only, then propose typed actions such as draft an Entry, link an Entry, or configure a check-in. Show a preview and require explicit confirmation before each write. Preserve a clear record of what was proposed and what the user approved.
-
-Open product questions: whether prompts should be fully visible or collapsed below the timeline; how users edit goal context after creation; and whether older quarterly Goals should appear alongside ongoing Goals or be presented as a separate legacy concept.
+The first model job should be narrow: rank 4–6 question IDs from the curated bank for one Goal. Inputs should be limited to the Goal's user-written context and a bounded, user-approved set of recent Entries. Keep a local fallback. Before connecting an API, decide on provider, backend/key custody, data-retention policy, opt-in scope, cost limits, failure behavior, and replacement copy for the current “nothing leaves the device” privacy promise. Never embed a shared API secret in the iOS app.

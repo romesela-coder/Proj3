@@ -87,6 +87,9 @@ final class Goal {
     @Relationship(deleteRule: .nullify, inverse: \Entry.goal)
     var entries: [Entry] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \GoalCheckpoint.goal)
+    var checkpoints: [GoalCheckpoint] = []
+
     init(title: String, metric: String? = nil, quarter: Quarter = .current(), createdAt: Date = .now) {
         self.title = title
         self.emoji = "🎯"
@@ -98,6 +101,7 @@ final class Goal {
         self.desiredChange = nil
         self.currentChallenge = nil
         self.entries = []
+        self.checkpoints = []
     }
 
     static func track(title: String, createdAt: Date = .now) -> Goal {

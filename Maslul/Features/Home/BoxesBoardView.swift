@@ -1034,7 +1034,7 @@ private struct FocusedBoxEntryCard: View {
     }
 }
 
-private struct BoxEntryCard: View {
+struct BoxEntryCard: View {
     let entry: Entry
 
     var body: some View {

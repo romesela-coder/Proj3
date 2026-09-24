@@ -73,6 +73,10 @@ final class Entry {
     /// entries never belong to a declared goal, and that is itself the finding.
     var goal: Goal?
 
+    /// Optional context within a goal. Entries remain in the daily journal
+    /// and the goal timeline even if their checkpoint is later removed.
+    var checkpoint: GoalCheckpoint?
+
     init(
         body: String = "",
         createdAt: Date = .now,
@@ -98,6 +102,7 @@ final class Entry {
         self.reflectionPromptID = nil
         self.reflectionPromptText = nil
         self.tags = []
+        self.checkpoint = nil
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []
     }

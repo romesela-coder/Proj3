@@ -125,8 +125,7 @@ struct GoalsOverviewView: View {
     }
 }
 
-/// A goal is a timeline first. Writing directions appear only when someone
-/// opens the composer and asks for help getting started.
+/// A goal keeps its user-ordered plan beside its chronological journal.
 struct GoalDetailSheet: View {
     let goal: Goal
 
@@ -135,13 +134,19 @@ struct GoalDetailSheet: View {
 
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var allEntries: [Entry]
+    @Query(sort: \GoalCheckpoint.sortIndex, order: .forward) private var allCheckpoints: [GoalCheckpoint]
     @Query(sort: \EntryBox.sortIndex, order: .forward) private var boxes: [EntryBox]
     @Query(sort: \EntryTag.name, order: .forward) private var tags: [EntryTag]
 
     @State private var selectedEntry: Entry?
+    @State private var editingCheckpoint: GoalCheckpoint?
+    @State private var isAddingCheckpoint = false
+    @State private var isImportingBox = false
+    @State private var checkpointEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
     @State private var selectedPrompt: TrackQuestion?
+    @State private var selectedCheckpoint: GoalCheckpoint?
     @State private var text = ""
     @State private var selectedTags: [EntryTag] = []
     @State private var selectedBox: EntryBox?
@@ -153,22 +158,79 @@ struct GoalDetailSheet: View {
         allEntries.filter { $0.goal?.persistentModelID == goal.persistentModelID }
     }
 
+    private var checkpoints: [GoalCheckpoint] {
+        allCheckpoints
+            .filter { $0.goal?.persistentModelID == goal.persistentModelID }
+            .sorted { lhs, rhs in
+            if lhs.sortIndex == rhs.sortIndex { return lhs.createdAt < rhs.createdAt }
+            return lhs.sortIndex < rhs.sortIndex
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        goalHeader
-                        timelineSection
+                List {
+                    goalHeader
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.top, 25)
+                        .padding(.bottom, 22)
+                        .journalListRow()
+
+                    roadmapHeader
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.bottom, 12)
+                        .journalListRow()
+
+                    if checkpoints.isEmpty {
+                        roadmapEmptyState
+                            .padding(.horizontal, Metrics.hMargin)
+                            .padding(.bottom, 8)
+                            .journalListRow()
+                    } else {
+                        ForEach(checkpoints) { checkpoint in
+                            checkpointShelf(checkpoint)
+                                .padding(.horizontal, Metrics.hMargin)
+                                .padding(.trailing, checkpointEditMode.isEditing ? -44 : 0)
+                                .journalListRow()
+                        }
+                        .onMove(perform: moveCheckpoints)
                     }
-                    .padding(.horizontal, Metrics.hMargin)
-                    .padding(.top, 25)
-                    .padding(.bottom, isWriting ? 235 : 110)
+
+                    timelineSection
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.bottom, isWriting ? 235 : 110)
+                        .journalListRow()
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
+                .environment(\.editMode, $checkpointEditMode)
 
                 if isWriting {
                     VStack(spacing: 9) {
+                        if let selectedCheckpoint {
+                            HStack(spacing: 8) {
+                                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(selectedCheckpoint.title)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button {
+                                    self.selectedCheckpoint = nil
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove checkpoint link")
+                            }
+                            .font(.bodyText(12, weight: .medium))
+                            .foregroundStyle(Palette.ink2)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 10)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.neutralTile))
+                            .padding(.horizontal, 8)
+                        }
                         if selectedPrompt == nil {
                             EntryDirectionAccessory(open: openDirections)
                         }
@@ -218,6 +280,20 @@ struct GoalDetailSheet: View {
             .sheet(item: $selectedEntry) { entry in
                 EntryDetailView(entry: entry)
             }
+            .sheet(isPresented: $isAddingCheckpoint) {
+                GoalCheckpointEditor(goal: goal, nextSortIndex: checkpoints.count)
+            }
+            .sheet(isPresented: $isImportingBox) {
+                GoalBoxImportSheet(
+                    goal: goal,
+                    boxes: boxes,
+                    entries: allEntries,
+                    nextSortIndex: checkpoints.count
+                )
+            }
+            .sheet(item: $editingCheckpoint) { checkpoint in
+                GoalCheckpointEditor(goal: goal, checkpoint: checkpoint)
+            }
             .sheet(isPresented: $isChoosingDirection, onDismiss: {
                 withAnimation(Motion.spring) { isWriting = true }
             }) {
@@ -247,6 +323,9 @@ struct GoalDetailSheet: View {
 
             ChipFlow(spacing: 7, rowSpacing: 7) {
                 goalFact(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
+                if !checkpoints.isEmpty {
+                    goalFact("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) checkpoints")
+                }
                 goalFact("Started \((goal.trackCreatedAt ?? goal.createdAt).formatted(.dateTime.day().month(.abbreviated)))")
             }
         }
@@ -259,6 +338,172 @@ struct GoalDetailSheet: View {
             .padding(.horizontal, 10)
             .frame(minHeight: 31)
             .background(RoundedRectangle(cornerRadius: 8).fill(Palette.neutralTile))
+    }
+
+    private var roadmapHeader: some View {
+        HStack(spacing: 10) {
+            SectionLabel(text: "ROADMAP")
+            Spacer()
+            if checkpointEditMode.isEditing {
+                Button("Done") {
+                    withAnimation(Motion.spring) {
+                        checkpointEditMode = .inactive
+                    }
+                }
+                .font(.bodyText(12, weight: .semibold))
+                .foregroundStyle(Palette.ink2)
+            } else {
+                Menu {
+                    Button {
+                        isImportingBox = true
+                    } label: {
+                        Label("Use an existing Box", systemImage: "square.grid.2x2")
+                    }
+                    if checkpoints.count > 1 {
+                        Button {
+                            withAnimation(Motion.spring) { checkpointEditMode = .active }
+                        } label: {
+                            Label("Reorder checkpoints", systemImage: "arrow.up.arrow.down")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.ink2)
+                        .frame(width: 32, height: 32)
+                }
+                .accessibilityLabel("Roadmap options")
+            }
+            Button {
+                isAddingCheckpoint = true
+            } label: {
+                Label("Checkpoint", systemImage: "plus")
+                    .font(.bodyText(12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Palette.ink)
+        }
+    }
+
+    private var roadmapEmptyState: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("What needs to happen along the way?")
+                .font(.bodyText(15, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+            Text("Add a checkpoint to sketch the path. It can be a simple task or a larger milestone.")
+                .font(.bodyText(13.5))
+                .foregroundStyle(Palette.meta)
+            Button("Use an existing Box") {
+                isImportingBox = true
+            }
+            .font(.bodyText(13, weight: .semibold))
+            .foregroundStyle(Palette.ink)
+            .padding(.top, 3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Palette.neutralTile))
+    }
+
+    private func checkpointShelf(_ checkpoint: GoalCheckpoint) -> some View {
+        let linkedEntries = entries
+            .filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }
+            .sorted { $0.createdAt > $1.createdAt }
+
+        return VStack(alignment: .leading, spacing: 11) {
+            Button {
+                editingCheckpoint = checkpoint
+            } label: {
+                HStack(alignment: .top, spacing: 9) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(checkpoint.title)
+                            .font(.bodyText(17, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                            .multilineTextAlignment(.leading)
+                        if let details = checkpoint.details, !details.isEmpty {
+                            Text(details)
+                                .font(.bodyText(13.5))
+                                .foregroundStyle(Palette.ink2)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    Spacer(minLength: 5)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.meta)
+                        .padding(.top, 5)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(checkpointEditMode.isEditing)
+
+            HStack(spacing: 10) {
+                if let dueAt = checkpoint.dueAt {
+                    Label(dueAt.formatted(.dateTime.day().month(.abbreviated).year()), systemImage: "calendar")
+                }
+                Text(linkedEntries.count == 1 ? "1 entry" : "\(linkedEntries.count) entries")
+            }
+            .font(.utility(11))
+            .foregroundStyle(Palette.meta)
+
+            if !linkedEntries.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 10) {
+                        ForEach(linkedEntries) { entry in
+                            Button { selectedEntry = entry } label: {
+                                BoxEntryCard(entry: entry)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.trailing, Metrics.hMargin)
+                }
+            }
+
+            Button {
+                beginWriting(for: checkpoint)
+            } label: {
+                Label(linkedEntries.isEmpty ? "Write about this step" : "Add another entry", systemImage: "square.and.pencil")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
+            }
+            .buttonStyle(.plain)
+            .disabled(checkpointEditMode.isEditing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 29)
+        .padding(.bottom, 22)
+        .overlay(alignment: .topLeading) {
+            Rectangle()
+                .fill(checkpoint.persistentModelID == checkpoints.last?.persistentModelID ? Color.clear : Palette.line)
+                .frame(width: 1)
+                .padding(.leading, 9)
+                .padding(.top, 20)
+        }
+        .overlay(alignment: .topLeading) {
+            Button {
+                checkpoint.completedAt = checkpoint.completedAt == nil ? .now : nil
+                try? context.save()
+            } label: {
+                Image(systemName: checkpoint.completedAt == nil ? "circle" : "checkmark.circle.fill")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(checkpoint.completedAt == nil ? Palette.meta : Palette.ink)
+                    .frame(width: 20, height: 24)
+            }
+            .buttonStyle(.plain)
+            .disabled(checkpointEditMode.isEditing)
+            .accessibilityLabel(checkpoint.completedAt == nil ? "Complete checkpoint" : "Reopen checkpoint")
+        }
+    }
+
+    private func moveCheckpoints(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = checkpoints
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for (index, checkpoint) in reordered.enumerated() {
+            checkpoint.sortIndex = index
+        }
+        try? context.save()
     }
 
     private var timelineSection: some View {
@@ -281,6 +526,11 @@ struct GoalDetailSheet: View {
                                     .font(.bodyText(12, weight: .medium))
                                     .foregroundStyle(Palette.ink2)
                                     .multilineTextAlignment(.leading)
+                            }
+                            if let checkpoint = entry.checkpoint {
+                                Text(checkpoint.title)
+                                    .font(.utility(10.5))
+                                    .foregroundStyle(Palette.ink2)
                             }
                             Text(entry.body)
                                 .font(.bodyText(15))
@@ -318,8 +568,9 @@ struct GoalDetailSheet: View {
         isChoosingDirection = true
     }
 
-    private func beginWriting() {
+    private func beginWriting(for checkpoint: GoalCheckpoint? = nil) {
         selectedPrompt = nil
+        selectedCheckpoint = checkpoint
         selectedBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
         withAnimation(Motion.spring) { isWriting = true }
     }
@@ -330,6 +581,7 @@ struct GoalDetailSheet: View {
         let entry = Entry(body: body)
         CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.goal = goal
+        entry.checkpoint = selectedCheckpoint
         entry.tags = selectedTags
         entry.reflectionPromptID = selectedPrompt?.id
         entry.reflectionPromptText = selectedPrompt?.text
@@ -360,6 +612,7 @@ struct GoalDetailSheet: View {
         text = ""
         selectedTags = []
         selectedPrompt = nil
+        selectedCheckpoint = nil
         selectedBox = nil
         reminderAt = nil
         selection = NSRange(location: 0, length: 0)

@@ -14,12 +14,15 @@ struct EntryDetailView: View {
     private var projects: [Project]
     @Query(sort: \Goal.createdAt, order: .forward)
     private var goals: [Goal]
+    @Query(sort: \GoalCheckpoint.sortIndex, order: .forward)
+    private var checkpoints: [GoalCheckpoint]
 
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
 
     @State private var showProjectPicker = false
     @State private var showGoalPicker = false
+    @State private var showCheckpointPicker = false
     @State private var showDatePicker = false
     @State private var showReminderPicker = false
     @State private var showBoxPicker = false
@@ -45,6 +48,11 @@ struct EntryDetailView: View {
     private var activeProjects: [Project] {
         // A closed project stays on the entries already filed under it.
         projects.filter { $0.isSelectable || $0.persistentModelID == entry.project?.persistentModelID }
+    }
+
+    private var goalCheckpoints: [GoalCheckpoint] {
+        guard let goalID = entry.goal?.persistentModelID else { return [] }
+        return checkpoints.filter { $0.goal?.persistentModelID == goalID }
     }
 
     var body: some View {
@@ -120,10 +128,31 @@ struct EntryDetailView: View {
         }
         .confirmationDialog("Goal", isPresented: $showGoalPicker, titleVisibility: .visible) {
             ForEach(goals.filter { ($0.isTrack && $0.isOpen) || $0.persistentModelID == entry.goal?.persistentModelID }) { goal in
-                Button(goal.title) { mutate { entry.goal = goal } }
+                Button(goal.title) {
+                    mutate {
+                        if entry.goal?.persistentModelID != goal.persistentModelID {
+                            entry.checkpoint = nil
+                        }
+                        entry.goal = goal
+                    }
+                }
             }
             if entry.goal != nil {
-                Button("No goal") { mutate { entry.goal = nil } }
+                Button("No goal") {
+                    mutate {
+                        entry.checkpoint = nil
+                        entry.goal = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Checkpoint", isPresented: $showCheckpointPicker, titleVisibility: .visible) {
+            ForEach(goalCheckpoints) { checkpoint in
+                Button(checkpoint.title) { mutate { entry.checkpoint = checkpoint } }
+            }
+            if entry.checkpoint != nil {
+                Button("No checkpoint") { mutate { entry.checkpoint = nil } }
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -200,13 +229,25 @@ struct EntryDetailView: View {
             }
 
             metadataGroup("GOAL") {
-                Button { showGoalPicker = true } label: {
-                    Chip(
-                        title: entry.goal.map { "\($0.emoji) \($0.title)" } ?? "+ Goal",
-                        isOn: entry.goal != nil
-                    )
+                chipFlow {
+                    Button { showGoalPicker = true } label: {
+                        Chip(
+                            title: entry.goal.map { "\($0.emoji) \($0.title)" } ?? "+ Goal",
+                            isOn: entry.goal != nil
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    if entry.goal != nil, !goalCheckpoints.isEmpty {
+                        Button { showCheckpointPicker = true } label: {
+                            Chip(
+                                title: entry.checkpoint?.title ?? "+ Checkpoint",
+                                isOn: entry.checkpoint != nil
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
             }
 
             metadataGroup("ORIGIN & EFFORT") {
