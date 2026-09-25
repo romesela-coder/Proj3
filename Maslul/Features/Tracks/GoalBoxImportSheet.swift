@@ -140,6 +140,9 @@ struct GoalBoxImportSheet: View {
         let checkpoint = GoalCheckpoint(title: box.name, goal: goal, sortIndex: nextSortIndex)
         context.insert(checkpoint)
         for entry in entries {
+            if entry.goal?.persistentModelID != goal.persistentModelID {
+                entry.goalRoadmapSortIndex = nil
+            }
             entry.goal = goal
             entry.checkpoint = checkpoint
         }

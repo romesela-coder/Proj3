@@ -11,6 +11,8 @@ final class GoalCheckpoint {
     var dueAt: Date?
     var completedAt: Date?
     var sortIndex: Int = 0
+    /// Position among both checkpoints and standalone Goal entries after a drag.
+    var goalRoadmapSortIndex: Int?
     var goal: Goal?
 
     /// Removing a plan step must never remove journal entries written about it.
@@ -21,6 +23,7 @@ final class GoalCheckpoint {
         self.title = title
         self.goal = goal
         self.sortIndex = sortIndex
+        self.goalRoadmapSortIndex = nil
         self.details = details
         self.dueAt = dueAt
         self.createdAt = .now

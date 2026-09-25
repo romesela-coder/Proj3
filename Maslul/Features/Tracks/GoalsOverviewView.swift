@@ -142,7 +142,7 @@ struct GoalDetailSheet: View {
     @State private var selectedEntry: Entry?
     @State private var isAddingCheckpoint = false
     @State private var isImportingBox = false
-    @State private var checkpointEditMode: EditMode = .inactive
+    @State private var roadmapEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
     @State private var selectedPrompt: TrackQuestion?
@@ -185,15 +185,52 @@ struct GoalDetailSheet: View {
             }
         }
 
-        var isEntry: Bool {
-            if case .entry = self { return true }
-            return false
+        var manualSortIndex: Int? {
+            switch self {
+            case .checkpoint(let checkpoint): checkpoint.goalRoadmapSortIndex
+            case .entry(let entry): entry.goalRoadmapSortIndex
+            }
+        }
+
+        func setManualSortIndex(_ index: Int) {
+            switch self {
+            case .checkpoint(let checkpoint): checkpoint.goalRoadmapSortIndex = index
+            case .entry(let entry): entry.goalRoadmapSortIndex = index
+            }
         }
     }
 
-    /// Checkpoint order is intentional; target dates only position standalone
-    /// entries relative to those steps. Entries on a target day precede it.
+    /// A manual drag wins over date placement. New items still enter near their
+    /// date-based neighbors without rearranging previously positioned items.
     private var roadmapItems: [RoadmapItem] {
+        let initial = datePlacedRoadmapItems
+        let positioned = initial.filter { $0.manualSortIndex != nil }
+        guard !positioned.isEmpty else { return initial }
+
+        var result = positioned.sorted { lhs, rhs in
+            let left = lhs.manualSortIndex ?? 0
+            let right = rhs.manualSortIndex ?? 0
+            return left == right ? lhs.id < rhs.id : left < right
+        }
+
+        for (index, item) in initial.enumerated() where item.manualSortIndex == nil {
+            let following = initial[(index + 1)...].first { $0.manualSortIndex != nil }
+            if let following, let insertion = result.firstIndex(where: { $0.id == following.id }) {
+                result.insert(item, at: insertion)
+            } else if let preceding = initial[..<index].reversed().first(where: { prior in
+                result.contains(where: { $0.id == prior.id })
+            }), let insertion = result.firstIndex(where: { $0.id == preceding.id }) {
+                result.insert(item, at: insertion + 1)
+            } else {
+                result.append(item)
+            }
+        }
+        return result
+    }
+
+    /// Before the first drag, an Entry's creation day places it before the
+    /// first Checkpoint whose target day is the same or later.
+    private var datePlacedRoadmapItems: [RoadmapItem] {
         let orderedCheckpoints = checkpoints
         let datedEntries = entriesBeyondCheckpoints.sorted {
             if $0.createdAt == $1.createdAt {
@@ -254,11 +291,10 @@ struct GoalDetailSheet: View {
                                 }
                             }
                             .padding(.horizontal, Metrics.hMargin)
-                            .padding(.trailing, checkpointEditMode.isEditing ? -44 : 0)
+                            .padding(.trailing, roadmapEditMode.isEditing ? -44 : 0)
                             .journalListRow()
-                            .moveDisabled(item.isEntry)
                         }
-                        .onMove(perform: moveCheckpoints)
+                        .onMove(perform: moveRoadmapItems)
                     }
 
                     Color.clear
@@ -268,7 +304,7 @@ struct GoalDetailSheet: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
-                .environment(\.editMode, $checkpointEditMode)
+                .environment(\.editMode, $roadmapEditMode)
 
                 if isWriting {
                     VStack(spacing: 9) {
@@ -385,10 +421,10 @@ struct GoalDetailSheet: View {
         HStack(spacing: 10) {
             SectionLabel(text: "ROADMAP")
             Spacer()
-            if checkpointEditMode.isEditing {
+            if roadmapEditMode.isEditing {
                 Button("Done") {
                     withAnimation(Motion.spring) {
-                        checkpointEditMode = .inactive
+                        roadmapEditMode = .inactive
                     }
                 }
                 .font(.bodyText(12, weight: .semibold))
@@ -400,11 +436,11 @@ struct GoalDetailSheet: View {
                     } label: {
                         Label("Use an existing Box", systemImage: "square.grid.2x2")
                     }
-                    if checkpoints.count > 1 {
+                    if roadmapItems.count > 1 {
                         Button {
-                            withAnimation(Motion.spring) { checkpointEditMode = .active }
+                            withAnimation(Motion.spring) { roadmapEditMode = .active }
                         } label: {
-                            Label("Reorder checkpoints", systemImage: "arrow.up.arrow.down")
+                            Label("Reorder roadmap", systemImage: "arrow.up.arrow.down")
                         }
                     }
                 } label: {
@@ -460,7 +496,7 @@ struct GoalDetailSheet: View {
                     .frame(width: 20, height: 24)
             }
             .buttonStyle(.plain)
-            .disabled(checkpointEditMode.isEditing)
+            .disabled(roadmapEditMode.isEditing)
             .accessibilityLabel(checkpoint.completedAt == nil ? "Complete checkpoint" : "Reopen checkpoint")
 
             Button {
@@ -503,7 +539,7 @@ struct GoalDetailSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(checkpointEditMode.isEditing)
+            .disabled(roadmapEditMode.isEditing)
             .accessibilityLabel("Open \(checkpoint.title), \(entryCount) entries")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -520,12 +556,13 @@ struct GoalDetailSheet: View {
         }
     }
 
-    private func moveCheckpoints(fromOffsets: IndexSet, toOffset: Int) {
+    private func moveRoadmapItems(fromOffsets: IndexSet, toOffset: Int) {
         var reordered = roadmapItems
-        guard fromOffsets.allSatisfy({ index in
-            reordered.indices.contains(index) && !reordered[index].isEntry
-        }) else { return }
+        guard fromOffsets.allSatisfy(reordered.indices.contains) else { return }
         reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for (index, item) in reordered.enumerated() {
+            item.setManualSortIndex(index)
+        }
         let orderedCheckpoints = reordered.compactMap { item -> GoalCheckpoint? in
             if case .checkpoint(let checkpoint) = item { return checkpoint }
             return nil
@@ -538,7 +575,7 @@ struct GoalDetailSheet: View {
 
     private func standaloneEntryRow(_ entry: Entry, isLast: Bool) -> some View {
         Button {
-            selectedEntry = entry
+            if !roadmapEditMode.isEditing { selectedEntry = entry }
         } label: {
             HStack(alignment: .top, spacing: 9) {
                 Circle()

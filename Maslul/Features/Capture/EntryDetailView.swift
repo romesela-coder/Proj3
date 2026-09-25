@@ -132,6 +132,7 @@ struct EntryDetailView: View {
                     mutate {
                         if entry.goal?.persistentModelID != goal.persistentModelID {
                             entry.checkpoint = nil
+                            entry.goalRoadmapSortIndex = nil
                         }
                         entry.goal = goal
                     }
@@ -142,6 +143,7 @@ struct EntryDetailView: View {
                     mutate {
                         entry.checkpoint = nil
                         entry.goal = nil
+                        entry.goalRoadmapSortIndex = nil
                     }
                 }
             }

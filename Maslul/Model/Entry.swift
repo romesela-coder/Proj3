@@ -77,6 +77,10 @@ final class Entry {
     /// and the goal timeline even if their checkpoint is later removed.
     var checkpoint: GoalCheckpoint?
 
+    /// Manual position on this Goal's mixed roadmap. Nil uses the initial
+    /// created-at / checkpoint-target placement until the roadmap is reordered.
+    var goalRoadmapSortIndex: Int?
+
     init(
         body: String = "",
         createdAt: Date = .now,
@@ -103,6 +107,7 @@ final class Entry {
         self.reflectionPromptText = nil
         self.tags = []
         self.checkpoint = nil
+        self.goalRoadmapSortIndex = nil
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []
     }
