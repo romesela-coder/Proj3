@@ -21,7 +21,6 @@ struct GoalEntryCollectionSheet: View {
     @State private var isEditingHeader = false
     @State private var headerTitle = ""
     @State private var headerDetails = ""
-    @FocusState private var focusedHeaderField: HeaderField?
     @State private var isConfirmingDelete = false
     @State private var isShowingDeleteError = false
     @State private var timelineEditMode: EditMode = .inactive
@@ -34,11 +33,6 @@ struct GoalEntryCollectionSheet: View {
     @State private var reminderAt: Date?
     @State private var reminderDelivery: EntryReminderDelivery = .notification
     @State private var selection = NSRange(location: 0, length: 0)
-
-    private enum HeaderField: Hashable {
-        case title
-        case details
-    }
 
     private var entries: [Entry] {
         allEntries.filter {
@@ -184,27 +178,19 @@ struct GoalEntryCollectionSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .top, spacing: 10) {
-                if isEditingHeader {
-                    TextField("Checkpoint name", text: $headerTitle, axis: .vertical)
-                        .font(.display(29))
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1...3)
-                        .focused($focusedHeaderField, equals: .title)
-                } else {
-                    Button { beginHeaderEditing(.title) } label: {
-                        Text(checkpoint.title)
-                            .font(.display(29))
-                            .displayTracking(29)
-                            .foregroundStyle(Palette.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Edit checkpoint name: \(checkpoint.title)")
-                }
-
+            EditableDetailHeader(
+                title: checkpoint.title,
+                parentTitle: goal.title,
+                isEditing: isEditingHeader,
+                draftTitle: $headerTitle,
+                titlePlaceholder: "Checkpoint name",
+                canSave: !headerTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                onBeginEditing: beginHeaderEditing,
+                onSave: saveHeader,
+                onCancel: cancelHeaderEditing
+            ) {
+                DetailEditField(placeholder: "Description (optional)", text: $headerDetails)
+            } trailingContent: {
                 Menu {
                     Button("Edit checkpoint", systemImage: "pencil") {
                         isEditingCheckpoint = true
@@ -222,27 +208,8 @@ struct GoalEntryCollectionSheet: View {
                 .accessibilityLabel("Manage checkpoint")
             }
 
-            Text(goal.title)
-                .font(.bodyText(13, weight: .medium))
-                .foregroundStyle(Palette.meta)
-
-            if isEditingHeader {
-                TextField("Description (optional)", text: $headerDetails, axis: .vertical)
-                    .font(.bodyText(14))
-                    .lineLimit(2...5)
-                    .focused($focusedHeaderField, equals: .details)
-
-                HStack(spacing: 18) {
-                    Button("Save", action: saveHeader)
-                        .font(.bodyText(13, weight: .semibold))
-                        .foregroundStyle(Palette.ink)
-                        .disabled(headerTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("Cancel", action: cancelHeaderEditing)
-                        .font(.bodyText(13))
-                        .foregroundStyle(Palette.meta)
-                }
-            } else {
-                Button { beginHeaderEditing(.details) } label: {
+            if !isEditingHeader {
+                Button(action: beginHeaderEditing) {
                     Text(checkpoint.details.flatMap { $0.isEmpty ? nil : $0 } ?? "Add description")
                         .font(.bodyText(14))
                         .foregroundStyle(checkpoint.details?.isEmpty == false ? Palette.ink2 : Palette.meta)
@@ -382,11 +349,10 @@ struct GoalEntryCollectionSheet: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.neutralTile))
     }
 
-    private func beginHeaderEditing(_ field: HeaderField) {
+    private func beginHeaderEditing() {
         headerTitle = checkpoint.title
         headerDetails = checkpoint.details ?? ""
         isEditingHeader = true
-        focusedHeaderField = field
     }
 
     private func saveHeader() {
@@ -396,12 +362,10 @@ struct GoalEntryCollectionSheet: View {
         checkpoint.title = cleanTitle
         checkpoint.details = cleanDetails.isEmpty ? nil : cleanDetails
         try? context.save()
-        focusedHeaderField = nil
         isEditingHeader = false
     }
 
     private func cancelHeaderEditing() {
-        focusedHeaderField = nil
         isEditingHeader = false
     }
 

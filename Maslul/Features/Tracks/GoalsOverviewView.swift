@@ -139,7 +139,12 @@ struct GoalDetailSheet: View {
     @State private var isAddingCheckpoint = false
     @State private var isImportingBox = false
     @State private var isContextExpanded = false
-    @State private var isEditingContext = false
+    @State private var isEditingHeader = false
+    @State private var headerTitle = ""
+    @State private var headerMotivation = ""
+    @State private var headerDesiredChange = ""
+    @State private var headerCurrentChallenge = ""
+    @State private var isShowingHeaderSaveError = false
     @State private var roadmapEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
@@ -268,10 +273,12 @@ struct GoalDetailSheet: View {
                         .padding(.bottom, 4)
                         .journalListRow()
 
-                    goalContext
-                        .padding(.horizontal, Metrics.hMargin)
-                        .padding(.bottom, checkpoints.isEmpty ? 24 : 16)
-                        .journalListRow()
+                    if !isEditingHeader {
+                        goalContext
+                            .padding(.horizontal, Metrics.hMargin)
+                            .padding(.bottom, checkpoints.isEmpty ? 24 : 16)
+                            .journalListRow()
+                    }
 
                     if !checkpoints.isEmpty {
                         goalProgress
@@ -375,9 +382,6 @@ struct GoalDetailSheet: View {
             .sheet(isPresented: $isAddingCheckpoint) {
                 GoalCheckpointEditor(goal: goal, nextSortIndex: checkpoints.count)
             }
-            .sheet(isPresented: $isEditingContext) {
-                GoalContextEditor(goal: goal)
-            }
             .sheet(isPresented: $isImportingBox) {
                 GoalBoxImportSheet(
                     goal: goal,
@@ -394,17 +398,36 @@ struct GoalDetailSheet: View {
                     isChoosingDirection = false
                 }
             }
+            .alert("Couldn't save goal", isPresented: $isShowingHeaderSaveError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please try again.")
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 
     private var goalTitle: some View {
-        Text(goal.title)
-            .font(.display(29))
-            .displayTracking(29)
-            .foregroundStyle(Palette.ink)
-            .fixedSize(horizontal: false, vertical: true)
+        EditableDetailHeader(
+            title: goal.title,
+            parentTitle: nil,
+            isEditing: isEditingHeader,
+            draftTitle: $headerTitle,
+            titlePlaceholder: "Goal name",
+            canSave: !headerTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            onBeginEditing: beginHeaderEditing,
+            onSave: saveHeader,
+            onCancel: cancelHeaderEditing
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                DetailEditField(placeholder: "Why does this matter to you?", text: $headerMotivation)
+                DetailEditField(placeholder: "What would you like to change?", text: $headerDesiredChange)
+                DetailEditField(placeholder: "What feels difficult right now?", text: $headerCurrentChallenge)
+            }
+        } trailingContent: {
+            EmptyView()
+        }
     }
 
     private var goalProgress: some View {
@@ -462,14 +485,13 @@ struct GoalDetailSheet: View {
 
                     if isContextExpanded {
                         VStack(alignment: .leading, spacing: 14) {
-                            if let desiredChange = nonemptyContext(goal.desiredChange), nonemptyContext(goal.motivation) != nil {
-                                contextAnswer("What you'd like to change", text: desiredChange)
+                            ForEach(Array(contextParagraphs.dropFirst().enumerated()), id: \.offset) { _, paragraph in
+                                Text(paragraph)
+                                    .font(.bodyText(14))
+                                    .foregroundStyle(Palette.ink2)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            if let currentChallenge = nonemptyContext(goal.currentChallenge),
-                               nonemptyContext(goal.motivation) != nil || nonemptyContext(goal.desiredChange) != nil {
-                                contextAnswer("What feels difficult", text: currentChallenge)
-                            }
-                            Button("Edit context") { isEditingContext = true }
+                            Button("Edit") { beginHeaderEditing() }
                                 .font(.bodyText(13, weight: .semibold))
                                 .foregroundStyle(Palette.ink)
                         }
@@ -477,7 +499,7 @@ struct GoalDetailSheet: View {
                     }
                 }
             } else {
-                Button("Add context") { isEditingContext = true }
+                Button("Add context") { beginHeaderEditing() }
                     .font(.bodyText(13, weight: .medium))
                     .foregroundStyle(Palette.ink2)
             }
@@ -485,10 +507,12 @@ struct GoalDetailSheet: View {
     }
 
     private var contextPreview: String {
-        nonemptyContext(goal.motivation)
-            ?? nonemptyContext(goal.desiredChange)
-            ?? nonemptyContext(goal.currentChallenge)
-            ?? ""
+        contextParagraphs.first ?? ""
+    }
+
+    private var contextParagraphs: [String] {
+        [goal.motivation, goal.desiredChange, goal.currentChallenge]
+            .compactMap(nonemptyContext)
     }
 
     private var hasGoalContext: Bool {
@@ -500,18 +524,6 @@ struct GoalDetailSheet: View {
     private func nonemptyContext(_ value: String?) -> String? {
         guard let text = value?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return text
-    }
-
-    private func contextAnswer(_ label: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label)
-                .font(.bodyText(12, weight: .medium))
-                .foregroundStyle(Palette.meta)
-            Text(text)
-                .font(.bodyText(14))
-                .foregroundStyle(Palette.ink2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 
     private var roadmapHeader: some View {
@@ -723,6 +735,40 @@ struct GoalDetailSheet: View {
         withAnimation(Motion.spring) { isWriting = true }
     }
 
+    private func beginHeaderEditing() {
+        headerTitle = goal.title
+        headerMotivation = goal.motivation ?? ""
+        headerDesiredChange = goal.desiredChange ?? ""
+        headerCurrentChallenge = goal.currentChallenge ?? ""
+        isEditingHeader = true
+    }
+
+    private func saveHeader() {
+        let cleanTitle = headerTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTitle.isEmpty else { return }
+
+        goal.title = cleanTitle
+        goal.motivation = cleanedContext(headerMotivation)
+        goal.desiredChange = cleanedContext(headerDesiredChange)
+        goal.currentChallenge = cleanedContext(headerCurrentChallenge)
+        do {
+            try context.save()
+            isEditingHeader = false
+        } catch {
+            context.rollback()
+            isShowingHeaderSaveError = true
+        }
+    }
+
+    private func cancelHeaderEditing() {
+        isEditingHeader = false
+    }
+
+    private func cleanedContext(_ value: String) -> String? {
+        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
     private func saveEntry() {
         guard GoalEntryCreation.save(
             text: text,
@@ -743,79 +789,5 @@ struct GoalDetailSheet: View {
         reminderAt = nil
         selection = NSRange(location: 0, length: 0)
         withAnimation(Motion.spring) { isWriting = false }
-    }
-}
-
-private struct GoalContextEditor: View {
-    let goal: Goal
-
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-
-    @State private var motivation: String
-    @State private var desiredChange: String
-    @State private var currentChallenge: String
-    @State private var isShowingSaveError = false
-
-    init(goal: Goal) {
-        self.goal = goal
-        _motivation = State(initialValue: goal.motivation ?? "")
-        _desiredChange = State(initialValue: goal.desiredChange ?? "")
-        _currentChallenge = State(initialValue: goal.currentChallenge ?? "")
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                contextField("Why does this matter to you?", text: $motivation)
-                contextField("What would you like to change?", text: $desiredChange)
-                contextField("What feels difficult right now?", text: $currentChallenge)
-            }
-            .scrollContentBackground(.hidden)
-            .screenBackground()
-            .navigationTitle("Goal context")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save)
-                }
-            }
-            .alert("Couldn't save context", isPresented: $isShowingSaveError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Please try again.")
-            }
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func contextField(_ label: String, text: Binding<String>) -> some View {
-        Section(label) {
-            TextField("Add your answer", text: text, axis: .vertical)
-                .lineLimit(2...5)
-                .textInputAutocapitalization(.sentences)
-        }
-    }
-
-    private func save() {
-        goal.motivation = cleaned(motivation)
-        goal.desiredChange = cleaned(desiredChange)
-        goal.currentChallenge = cleaned(currentChallenge)
-        do {
-            try context.save()
-            dismiss()
-        } catch {
-            context.rollback()
-            isShowingSaveError = true
-        }
-    }
-
-    private func cleaned(_ value: String) -> String? {
-        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? nil : text
     }
 }
