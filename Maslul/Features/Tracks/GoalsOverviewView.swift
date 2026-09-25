@@ -125,7 +125,7 @@ struct GoalsOverviewView: View {
     }
 }
 
-/// One compact, ordered roadmap. Each step opens its own entry collection.
+/// One roadmap with planned checkpoints and individual journal entries.
 struct GoalDetailSheet: View {
     let goal: Goal
 
@@ -139,7 +139,7 @@ struct GoalDetailSheet: View {
     @Query(sort: \EntryTag.name, order: .forward) private var tags: [EntryTag]
 
     @State private var viewingCheckpoint: GoalCheckpoint?
-    @State private var isViewingGoalNotes = false
+    @State private var selectedEntry: Entry?
     @State private var isAddingCheckpoint = false
     @State private var isImportingBox = false
     @State private var checkpointEditMode: EditMode = .inactive
@@ -174,7 +174,56 @@ struct GoalDetailSheet: View {
         }
     }
 
+    private enum RoadmapItem: Identifiable {
+        case checkpoint(GoalCheckpoint)
+        case entry(Entry)
+
+        var id: String {
+            switch self {
+            case .checkpoint(let checkpoint): "checkpoint-\(checkpoint.persistentModelID)"
+            case .entry(let entry): "entry-\(entry.persistentModelID)"
+            }
+        }
+
+        var isEntry: Bool {
+            if case .entry = self { return true }
+            return false
+        }
+    }
+
+    /// Checkpoint order is intentional; target dates only position standalone
+    /// entries relative to those steps. Entries on a target day precede it.
+    private var roadmapItems: [RoadmapItem] {
+        let orderedCheckpoints = checkpoints
+        let datedEntries = entriesBeyondCheckpoints.sorted {
+            if $0.createdAt == $1.createdAt {
+                return String(describing: $0.persistentModelID) < String(describing: $1.persistentModelID)
+            }
+            return $0.createdAt < $1.createdAt
+        }
+        var slots = Array(repeating: [Entry](), count: orderedCheckpoints.count + 1)
+        let calendar = Calendar.current
+
+        for entry in datedEntries {
+            let entryDay = calendar.startOfDay(for: entry.createdAt)
+            let slot = orderedCheckpoints.firstIndex { checkpoint in
+                guard let target = checkpoint.dueAt else { return false }
+                return entryDay <= calendar.startOfDay(for: target)
+            } ?? orderedCheckpoints.count
+            slots[slot].append(entry)
+        }
+
+        var result: [RoadmapItem] = []
+        for index in orderedCheckpoints.indices {
+            result.append(contentsOf: slots[index].map(RoadmapItem.entry))
+            result.append(.checkpoint(orderedCheckpoints[index]))
+        }
+        result.append(contentsOf: slots[orderedCheckpoints.count].map(RoadmapItem.entry))
+        return result
+    }
+
     var body: some View {
+        let items = roadmapItems
         NavigationStack {
             ZStack(alignment: .bottom) {
                 List {
@@ -189,25 +238,27 @@ struct GoalDetailSheet: View {
                         .padding(.bottom, 12)
                         .journalListRow()
 
-                    if checkpoints.isEmpty {
+                    if items.isEmpty {
                         roadmapEmptyState
                             .padding(.horizontal, Metrics.hMargin)
                             .padding(.bottom, 8)
                             .journalListRow()
                     } else {
-                        ForEach(checkpoints) { checkpoint in
-                            checkpointShelf(checkpoint)
-                                .padding(.horizontal, Metrics.hMargin)
-                                .padding(.trailing, checkpointEditMode.isEditing ? -44 : 0)
-                                .journalListRow()
+                        ForEach(items) { item in
+                            Group {
+                                switch item {
+                                case .checkpoint(let checkpoint):
+                                    checkpointShelf(checkpoint, isLast: item.id == items.last?.id)
+                                case .entry(let entry):
+                                    standaloneEntryRow(entry, isLast: item.id == items.last?.id)
+                                }
+                            }
+                            .padding(.horizontal, Metrics.hMargin)
+                            .padding(.trailing, checkpointEditMode.isEditing ? -44 : 0)
+                            .journalListRow()
+                            .moveDisabled(item.isEntry)
                         }
                         .onMove(perform: moveCheckpoints)
-                    }
-
-                    if !entriesBeyondCheckpoints.isEmpty {
-                        goalNotesShelf
-                            .padding(.horizontal, Metrics.hMargin)
-                            .journalListRow()
                     }
 
                     Color.clear
@@ -270,8 +321,8 @@ struct GoalDetailSheet: View {
             .sheet(item: $viewingCheckpoint) { checkpoint in
                 GoalEntryCollectionSheet(goal: goal, checkpoint: checkpoint)
             }
-            .sheet(isPresented: $isViewingGoalNotes) {
-                GoalEntryCollectionSheet(goal: goal, checkpoint: nil)
+            .sheet(item: $selectedEntry) { entry in
+                EntryDetailView(entry: entry)
             }
             .sheet(isPresented: $isAddingCheckpoint) {
                 GoalCheckpointEditor(goal: goal, nextSortIndex: checkpoints.count)
@@ -395,7 +446,7 @@ struct GoalDetailSheet: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.neutralTile))
     }
 
-    private func checkpointShelf(_ checkpoint: GoalCheckpoint) -> some View {
+    private func checkpointShelf(_ checkpoint: GoalCheckpoint, isLast: Bool) -> some View {
         let entryCount = entries.filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }.count
 
         return HStack(alignment: .top, spacing: 9) {
@@ -460,8 +511,7 @@ struct GoalDetailSheet: View {
         .overlay(alignment: .topLeading) {
             Rectangle()
                 .fill(
-                    checkpoint.persistentModelID == checkpoints.last?.persistentModelID && entriesBeyondCheckpoints.isEmpty
-                        ? Color.clear : Palette.line
+                    isLast ? Color.clear : Palette.line
                 )
                 .frame(width: 1)
                 .padding(.leading, 9)
@@ -471,46 +521,46 @@ struct GoalDetailSheet: View {
     }
 
     private func moveCheckpoints(fromOffsets: IndexSet, toOffset: Int) {
-        var reordered = checkpoints
+        var reordered = roadmapItems
+        guard fromOffsets.allSatisfy({ index in
+            reordered.indices.contains(index) && !reordered[index].isEntry
+        }) else { return }
         reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        for (index, checkpoint) in reordered.enumerated() {
+        let orderedCheckpoints = reordered.compactMap { item -> GoalCheckpoint? in
+            if case .checkpoint(let checkpoint) = item { return checkpoint }
+            return nil
+        }
+        for (index, checkpoint) in orderedCheckpoints.enumerated() {
             checkpoint.sortIndex = index
         }
         try? context.save()
     }
 
-    private var goalNotesShelf: some View {
+    private func standaloneEntryRow(_ entry: Entry, isLast: Bool) -> some View {
         Button {
-            isViewingGoalNotes = true
+            selectedEntry = entry
         } label: {
             HStack(alignment: .top, spacing: 9) {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Palette.ink2)
+                Circle()
+                    .fill(Palette.ink2)
+                    .frame(width: 7, height: 7)
                     .frame(width: 20, height: 20)
-                    .background(Circle().fill(Palette.neutralTile))
 
                 VStack(alignment: .leading, spacing: 7) {
                     HStack {
-                        Text("Along the way")
-                            .font(.bodyText(17, weight: .semibold))
-                            .foregroundStyle(Palette.ink)
+                        Text(entry.createdAt.formatted(.dateTime.day().month(.abbreviated).year()))
+                            .font(.utility(11))
+                            .foregroundStyle(Palette.meta)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.meta)
                     }
-                    Text(entriesBeyondCheckpoints.count == 1
-                         ? "1 goal note"
-                         : "\(entriesBeyondCheckpoints.count) goal notes")
-                        .font(.utility(11))
-                        .foregroundStyle(Palette.meta)
-                    if let latest = entriesBeyondCheckpoints.first {
-                        Text(latest.body)
-                            .font(.bodyText(13))
-                            .foregroundStyle(Palette.ink2)
-                            .lineLimit(1)
-                    }
+                    Text(entry.body)
+                        .font(.bodyText(15))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -518,6 +568,15 @@ struct GoalDetailSheet: View {
         }
         .buttonStyle(.plain)
         .padding(.vertical, 12)
+        .overlay(alignment: .topLeading) {
+            Rectangle()
+                .fill(isLast ? Color.clear : Palette.line)
+                .frame(width: 1)
+                .padding(.leading, 9)
+                .padding(.top, 32)
+                .allowsHitTesting(false)
+        }
+        .accessibilityLabel("Entry from \(entry.createdAt.formatted(date: .abbreviated, time: .omitted)): \(entry.body)")
     }
 
     private func openDirections() {

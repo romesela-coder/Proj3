@@ -1,19 +1,16 @@
 import SwiftUI
 import SwiftData
 
-/// The focused view for one checkpoint's journal entries. The same view also
-/// holds Goal entries that were written without a checkpoint.
+/// The focused view for one checkpoint's journal entries.
 struct GoalEntryCollectionSheet: View {
     let goal: Goal
-    let checkpoint: GoalCheckpoint?
+    let checkpoint: GoalCheckpoint
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
     private var allEntries: [Entry]
-    @Query(sort: \GoalCheckpoint.sortIndex, order: .forward)
-    private var allCheckpoints: [GoalCheckpoint]
     @Query(sort: \EntryBox.sortIndex, order: .forward)
     private var boxes: [EntryBox]
     @Query(sort: \EntryTag.name, order: .forward)
@@ -32,20 +29,9 @@ struct GoalEntryCollectionSheet: View {
     @State private var selection = NSRange(location: 0, length: 0)
 
     private var entries: [Entry] {
-        let goalID = goal.persistentModelID
-        let goalEntries = allEntries.filter { $0.goal?.persistentModelID == goalID }
-        if let checkpoint {
-            return goalEntries.filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }
-        }
-
-        let validCheckpointIDs = Set(
-            allCheckpoints
-                .filter { $0.goal?.persistentModelID == goalID }
-                .map(\.persistentModelID)
-        )
-        return goalEntries.filter { entry in
-            guard let linked = entry.checkpoint else { return true }
-            return !validCheckpointIDs.contains(linked.persistentModelID)
+        allEntries.filter {
+            $0.goal?.persistentModelID == goal.persistentModelID
+                && $0.checkpoint?.persistentModelID == checkpoint.persistentModelID
         }
     }
 
@@ -87,7 +73,7 @@ struct GoalEntryCollectionSheet: View {
 
                 if isWriting {
                     VStack(spacing: 9) {
-                        Text(checkpoint.map { "Writing in \($0.title)" } ?? "Writing in \(goal.title)")
+                        Text("Writing in \(checkpoint.title)")
                             .font(.bodyText(12, weight: .medium))
                             .foregroundStyle(Palette.ink2)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -125,20 +111,18 @@ struct GoalEntryCollectionSheet: View {
                             .shadow(color: Palette.ink.opacity(0.16), radius: 9, y: 4)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(checkpoint == nil ? "Add goal note" : "Add entry to checkpoint")
+                    .accessibilityLabel("Add entry to checkpoint")
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.horizontal, Metrics.hMargin)
                     .padding(.bottom, 20)
                 }
             }
             .screenBackground()
-            .navigationTitle(checkpoint == nil ? "Goal notes" : "Checkpoint")
+            .navigationTitle("Checkpoint")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if checkpoint != nil {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Edit") { isEditingCheckpoint = true }
-                    }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Edit") { isEditingCheckpoint = true }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -148,9 +132,7 @@ struct GoalEntryCollectionSheet: View {
                 EntryDetailView(entry: entry)
             }
             .sheet(isPresented: $isEditingCheckpoint) {
-                if let checkpoint {
-                    GoalCheckpointEditor(goal: goal, checkpoint: checkpoint, onDelete: { dismiss() })
-                }
+                GoalCheckpointEditor(goal: goal, checkpoint: checkpoint, onDelete: { dismiss() })
             }
             .sheet(isPresented: $isChoosingDirection, onDismiss: {
                 withAnimation(Motion.spring) { isWriting = true }
@@ -167,7 +149,7 @@ struct GoalEntryCollectionSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text(checkpoint?.title ?? "Along the way")
+            Text(checkpoint.title)
                 .font(.display(29))
                 .displayTracking(29)
                 .foregroundStyle(Palette.ink)
@@ -177,7 +159,7 @@ struct GoalEntryCollectionSheet: View {
                 .font(.bodyText(13, weight: .medium))
                 .foregroundStyle(Palette.meta)
 
-            if let details = checkpoint?.details, !details.isEmpty {
+            if let details = checkpoint.details, !details.isEmpty {
                 Text(details)
                     .font(.bodyText(14))
                     .foregroundStyle(Palette.ink2)
@@ -185,31 +167,29 @@ struct GoalEntryCollectionSheet: View {
 
             ChipFlow(spacing: 7, rowSpacing: 7) {
                 fact(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
-                if let dueAt = checkpoint?.dueAt {
+                if let dueAt = checkpoint.dueAt {
                     fact("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated).year()))")
                 }
             }
 
-            if let checkpoint {
-                Button {
-                    checkpoint.completedAt = checkpoint.completedAt == nil ? .now : nil
-                    try? context.save()
-                } label: {
-                    Group {
-                        if let completedAt = checkpoint.completedAt {
-                            Label(
-                                "Completed \(completedAt.formatted(.dateTime.day().month(.abbreviated)))",
-                                systemImage: "checkmark.circle.fill"
-                            )
-                        } else {
-                            Label("Mark as complete", systemImage: "circle")
-                        }
+            Button {
+                checkpoint.completedAt = checkpoint.completedAt == nil ? .now : nil
+                try? context.save()
+            } label: {
+                Group {
+                    if let completedAt = checkpoint.completedAt {
+                        Label(
+                            "Completed \(completedAt.formatted(.dateTime.day().month(.abbreviated)))",
+                            systemImage: "checkmark.circle.fill"
+                        )
+                    } else {
+                        Label("Mark as complete", systemImage: "circle")
                     }
-                    .font(.bodyText(13, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
                 }
-                .buttonStyle(.plain)
+                .font(.bodyText(13, weight: .semibold))
+                .foregroundStyle(Palette.ink)
             }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -228,9 +208,7 @@ struct GoalEntryCollectionSheet: View {
             Text("No entries here yet")
                 .font(.bodyText(15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
-            Text(checkpoint == nil
-                 ? "A thought about this goal is enough to start."
-                 : "A checkpoint can stand on its own. Write when there's something worth noting.")
+            Text("A checkpoint can stand on its own. Write when there's something worth noting.")
                 .font(.bodyText(13.5))
                 .foregroundStyle(Palette.meta)
         }
