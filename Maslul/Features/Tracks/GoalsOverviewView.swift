@@ -285,9 +285,17 @@ struct GoalDetailSheet: View {
                             Group {
                                 switch item {
                                 case .checkpoint(let checkpoint):
-                                    checkpointShelf(checkpoint, isLast: item.id == items.last?.id)
+                                    checkpointShelf(
+                                        checkpoint,
+                                        isFirst: item.id == items.first?.id,
+                                        isLast: item.id == items.last?.id
+                                    )
                                 case .entry(let entry):
-                                    standaloneEntryRow(entry, isLast: item.id == items.last?.id)
+                                    standaloneEntryRow(
+                                        entry,
+                                        isFirst: item.id == items.first?.id,
+                                        isLast: item.id == items.last?.id
+                                    )
                                 }
                             }
                             .padding(.horizontal, Metrics.hMargin)
@@ -477,7 +485,7 @@ struct GoalDetailSheet: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.neutralTile))
     }
 
-    private func checkpointShelf(_ checkpoint: GoalCheckpoint, isLast: Bool) -> some View {
+    private func checkpointShelf(_ checkpoint: GoalCheckpoint, isFirst: Bool, isLast: Bool) -> some View {
         let entryCount = entries.filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }.count
 
         return HStack(alignment: .top, spacing: 9) {
@@ -486,9 +494,12 @@ struct GoalDetailSheet: View {
                 try? context.save()
             } label: {
                 Image(systemName: checkpoint.completedAt == nil ? "circle" : "checkmark.circle.fill")
-                    .font(.system(size: 21, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(checkpoint.completedAt == nil ? Palette.meta : Palette.ink)
                     .frame(width: 20, height: 24)
+                    .background {
+                        Circle().fill(Palette.ground).frame(width: 20, height: 20)
+                    }
             }
             .buttonStyle(.plain)
             .disabled(roadmapEditMode.isEditing)
@@ -500,29 +511,29 @@ struct GoalDetailSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .top, spacing: 8) {
                         Text(checkpoint.title)
-                            .font(.bodyText(17, weight: .semibold))
+                            .font(.bodyText(17, weight: .medium))
                             .foregroundStyle(Palette.ink)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 5)
+                        if entryCount > 0 {
+                            HStack(spacing: 3) {
+                                Image(systemName: "square.and.pencil")
+                                Text("\(entryCount)")
+                            }
+                            .font(.utility(10))
+                            .foregroundStyle(Palette.meta)
+                            .padding(.top, 5)
+                            .accessibilityLabel("\(entryCount) entries")
+                        }
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.meta)
                             .padding(.top, 5)
                     }
 
-                    if checkpoint.completedAt != nil || checkpoint.dueAt != nil || entryCount > 0 {
-                        HStack(spacing: 10) {
-                            if checkpoint.completedAt != nil {
-                                Text("Completed")
-                            }
-                            if let dueAt = checkpoint.dueAt {
-                                Text("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))")
-                            }
-                            if entryCount > 0 {
-                                Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
-                            }
-                        }
+                    if let dueAt = checkpoint.dueAt {
+                        Text("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))")
                         .font(.utility(11))
                         .foregroundStyle(Palette.meta)
                     }
@@ -538,16 +549,9 @@ struct GoalDetailSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 44, alignment: .top)
-        .padding(.vertical, 9)
-        .overlay(alignment: .topLeading) {
-            Rectangle()
-                .fill(
-                    isLast ? Color.clear : Palette.line
-                )
-                .frame(width: 1)
-                .padding(.leading, 9)
-                .padding(.top, 32)
-                .allowsHitTesting(false)
+        .padding(.vertical, 15)
+        .background {
+            roadmapRail(isFirst: isFirst, isLast: isLast)
         }
     }
 
@@ -568,7 +572,7 @@ struct GoalDetailSheet: View {
         try? context.save()
     }
 
-    private func standaloneEntryRow(_ entry: Entry, isLast: Bool) -> some View {
+    private func standaloneEntryRow(_ entry: Entry, isFirst: Bool, isLast: Bool) -> some View {
         Button {
             if !roadmapEditMode.isEditing { selectedEntry = entry }
         } label: {
@@ -576,7 +580,10 @@ struct GoalDetailSheet: View {
                 Circle()
                     .fill(Palette.ink2)
                     .frame(width: 7, height: 7)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 20, height: 24)
+                    .background {
+                        Circle().fill(Palette.ground).frame(width: 16, height: 16)
+                    }
 
                 VStack(alignment: .leading, spacing: 7) {
                     HStack {
@@ -599,16 +606,27 @@ struct GoalDetailSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 12)
-        .overlay(alignment: .topLeading) {
-            Rectangle()
-                .fill(isLast ? Color.clear : Palette.line)
-                .frame(width: 1)
-                .padding(.leading, 9)
-                .padding(.top, 32)
-                .allowsHitTesting(false)
+        .frame(minHeight: 44, alignment: .top)
+        .padding(.vertical, 15)
+        .background {
+            roadmapRail(isFirst: isFirst, isLast: isLast)
         }
         .accessibilityLabel("Entry from \(entry.createdAt.formatted(date: .abbreviated, time: .omitted)): \(entry.body)")
+    }
+
+    private func roadmapRail(isFirst: Bool, isLast: Bool) -> some View {
+        GeometryReader { geometry in
+            Path { path in
+                let markerCenterY: CGFloat = 27
+                let startY = isFirst ? markerCenterY : 0
+                let endY = isLast ? markerCenterY : geometry.size.height
+                guard endY > startY else { return }
+                path.move(to: CGPoint(x: 10, y: startY))
+                path.addLine(to: CGPoint(x: 10, y: endY))
+            }
+            .stroke(Palette.line, lineWidth: 1)
+        }
+        .allowsHitTesting(false)
     }
 
     private func openDirections() {
