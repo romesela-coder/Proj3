@@ -337,7 +337,7 @@ struct GlobalSearchView: View {
     private var resultList: some View {
         List {
             if !tagResults.isEmpty {
-                searchSectionLabel("TAGS", topPadding: 10)
+                searchSectionLabel("Tags", topPadding: 10)
 
                 ForEach(tagResults) { tag in
                     Button { router.open(tag) } label: {
@@ -349,7 +349,7 @@ struct GlobalSearchView: View {
             }
 
             if !boxResults.isEmpty {
-                searchSectionLabel("BOXES", topPadding: tagResults.isEmpty ? 10 : 18)
+                searchSectionLabel("Boxes", topPadding: tagResults.isEmpty ? 10 : 18)
 
                 ForEach(boxResults) { box in
                     Button { router.open(box) } label: {
@@ -362,7 +362,7 @@ struct GlobalSearchView: View {
 
             if !entryResults.isEmpty {
                 searchSectionLabel(
-                    "\(entryResults.count) \(entryResults.count == 1 ? "ENTRY" : "ENTRIES")",
+                    "\(entryResults.count) \(entryResults.count == 1 ? "entry" : "entries")",
                     topPadding: tagResults.isEmpty && boxResults.isEmpty ? 10 : 18
                 )
 
@@ -389,7 +389,7 @@ struct GlobalSearchView: View {
     private var recentList: some View {
         List {
             if !recentTags.isEmpty {
-                searchSectionLabel("RECENT TAGS", topPadding: 10)
+                searchSectionLabel("Recent tags", topPadding: 10)
 
                 ForEach(recentTags) { tag in
                     Button { router.open(tag) } label: {
@@ -401,7 +401,7 @@ struct GlobalSearchView: View {
             }
 
             if !recentBoxes.isEmpty {
-                searchSectionLabel("RECENT BOXES", topPadding: recentTags.isEmpty ? 10 : 18)
+                searchSectionLabel("Recent boxes", topPadding: recentTags.isEmpty ? 10 : 18)
 
                 ForEach(recentBoxes) { box in
                     Button { router.open(box) } label: {
@@ -659,10 +659,9 @@ private struct SearchDateRangeSheet: View {
             HStack {
                 CircleButton(symbol: "xmark") { dismiss() }
                 Spacer()
-                Text("DATE RANGE")
-                    .font(.utility(11.5))
-                    .tracking(1.5)
-                    .foregroundStyle(Palette.meta)
+                Text("Date range")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Button("Apply", action: apply)
                     .font(.bodyText(13, weight: .semibold))

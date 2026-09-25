@@ -253,7 +253,7 @@ struct GoalCreationSheet: View {
                                 .stroke(Palette.line, lineWidth: 1)
                         )
 
-                    SectionLabel(text: "OPTIONAL CONTEXT")
+                    SectionLabel(text: "Optional context")
 
                     TextField("Why does this matter to you?", text: $motivation, axis: .vertical)
                         .lineLimit(2...4)

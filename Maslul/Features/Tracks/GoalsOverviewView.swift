@@ -16,7 +16,7 @@ struct GoalsOverviewView: View {
                     emptyState
                 } else {
                     HStack {
-                        SectionLabel(text: "YOUR GOALS")
+                        SectionLabel(text: "Your goals")
                         Spacer()
                         Button("New goal", action: createGoal)
                             .font(.bodyText(13, weight: .semibold))
@@ -126,7 +126,6 @@ struct GoalsOverviewView: View {
 struct GoalDetailSheet: View {
     let goal: Goal
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
@@ -266,11 +265,6 @@ struct GoalDetailSheet: View {
                     goalHeader
                         .padding(.horizontal, Metrics.hMargin)
                         .padding(.top, 25)
-                        .padding(.bottom, 18)
-                        .journalListRow()
-
-                    goalContext
-                        .padding(.horizontal, Metrics.hMargin)
                         .padding(.bottom, 24)
                         .journalListRow()
 
@@ -359,13 +353,7 @@ struct GoalDetailSheet: View {
                 }
             }
             .screenBackground()
-            .navigationTitle("Goal")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $viewingCheckpoint) { checkpoint in
                 GoalEntryCollectionSheet(goal: goal, checkpoint: checkpoint)
             }
@@ -400,77 +388,101 @@ struct GoalDetailSheet: View {
     }
 
     private var goalHeader: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(goal.title)
                 .font(.display(29))
                 .displayTracking(29)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
+            goalContext
+
             if !checkpoints.isEmpty {
-                VStack(alignment: .leading, spacing: 9) {
-                    SectionLabel(text: "PROGRESS")
-                    ProgressView(
-                        value: Double(checkpoints.filter { $0.completedAt != nil }.count),
-                        total: Double(checkpoints.count)
-                    )
-                    .progressViewStyle(.linear)
-                    .tint(Palette.control)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Progress")
+                        .font(.bodyText(13, weight: .medium))
+                        .foregroundStyle(Palette.ink2)
+
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Palette.neutralTile)
+                            Capsule()
+                                .fill(Palette.control)
+                                .frame(width: geometry.size.width * checkpointProgress)
+                        }
+                    }
+                    .frame(height: 9)
+                    .animation(Motion.spring, value: checkpointProgress)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Checkpoint progress")
                     .accessibilityValue("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) complete")
                 }
+                .padding(.top, 3)
             }
         }
     }
 
+    private var checkpointProgress: CGFloat {
+        guard !checkpoints.isEmpty else { return 0 }
+        return CGFloat(checkpoints.filter { $0.completedAt != nil }.count) / CGFloat(checkpoints.count)
+    }
+
     private var goalContext: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(Motion.spring) { isContextExpanded.toggle() }
-            } label: {
-                HStack(spacing: 10) {
-                    SectionLabel(text: "CONTEXT")
-                    Image(systemName: isContextExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.meta)
-                }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isContextExpanded ? "Hide goal context" : "Show goal context")
-            .accessibilityAddTraits(.isButton)
+        Group {
+            if hasGoalContext {
+                VStack(alignment: .leading, spacing: 13) {
+                    Button {
+                        withAnimation(Motion.spring) { isContextExpanded.toggle() }
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(contextPreview)
+                                .font(.bodyText(14.5))
+                                .foregroundStyle(Palette.ink2)
+                                .lineLimit(isContextExpanded ? nil : 2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: isContextExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Palette.ink2)
+                                .frame(width: 28, height: 28)
+                                .background(Circle().fill(Palette.neutralTile))
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isContextExpanded ? "Collapse goal context" : "Expand goal context")
+                    .accessibilityValue(contextPreview)
 
-            if isContextExpanded {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let motivation = nonemptyContext(goal.motivation) {
-                        contextAnswer("WHY IT MATTERS", text: motivation)
+                    if isContextExpanded {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if let desiredChange = nonemptyContext(goal.desiredChange), nonemptyContext(goal.motivation) != nil {
+                                contextAnswer("What you'd like to change", text: desiredChange)
+                            }
+                            if let currentChallenge = nonemptyContext(goal.currentChallenge),
+                               nonemptyContext(goal.motivation) != nil || nonemptyContext(goal.desiredChange) != nil {
+                                contextAnswer("What feels difficult", text: currentChallenge)
+                            }
+                            Button("Edit context") { isEditingContext = true }
+                                .font(.bodyText(13, weight: .semibold))
+                                .foregroundStyle(Palette.ink)
+                        }
+                        .padding(.top, 1)
                     }
-                    if let desiredChange = nonemptyContext(goal.desiredChange) {
-                        contextAnswer("WHAT SHOULD CHANGE", text: desiredChange)
-                    }
-                    if let currentChallenge = nonemptyContext(goal.currentChallenge) {
-                        contextAnswer("WHAT FEELS DIFFICULT", text: currentChallenge)
-                    }
-                    if !hasGoalContext {
-                        Text("Add a little context for this goal.")
-                            .font(.bodyText(14))
-                            .foregroundStyle(Palette.meta)
-                    }
-
-                    Button(hasGoalContext ? "Edit context" : "Add context") {
-                        isEditingContext = true
-                    }
-                    .font(.bodyText(13, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 16)
+            } else {
+                Button("Add context") { isEditingContext = true }
+                    .font(.bodyText(13, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
             }
         }
-        .overlay(alignment: .top) {
-            Rectangle().fill(Palette.lineSoft).frame(height: 1)
-        }
+    }
+
+    private var contextPreview: String {
+        nonemptyContext(goal.motivation)
+            ?? nonemptyContext(goal.desiredChange)
+            ?? nonemptyContext(goal.currentChallenge)
+            ?? ""
     }
 
     private var hasGoalContext: Bool {
@@ -486,7 +498,9 @@ struct GoalDetailSheet: View {
 
     private func contextAnswer(_ label: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            SectionLabel(text: label)
+            Text(label)
+                .font(.bodyText(12, weight: .medium))
+                .foregroundStyle(Palette.meta)
             Text(text)
                 .font(.bodyText(14))
                 .foregroundStyle(Palette.ink2)
@@ -496,7 +510,7 @@ struct GoalDetailSheet: View {
 
     private var roadmapHeader: some View {
         HStack(spacing: 10) {
-            SectionLabel(text: "ROADMAP")
+            SectionLabel(text: "Roadmap")
             Spacer()
             if roadmapEditMode.isEditing {
                 Button("Done") {

@@ -53,10 +53,6 @@ struct TypeTile: View {
 
                 Spacer(minLength: 12)
 
-                Text(type.latin)
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
                 Text(type.title)
                     .font(.bodyText(16.5, weight: .bold))
                     .foregroundStyle(Palette.ink)
@@ -337,14 +333,14 @@ struct CardBox<Content: View>: View {
 
 // MARK: - Section label
 
+/// Sentence-case section headings; mono and wide tracking are reserved for data.
 struct SectionLabel: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.utility(10.5))
-            .tracking(1.4)
-            .foregroundStyle(Palette.meta)
+            .font(.bodyText(12.5, weight: .medium))
+            .foregroundStyle(Palette.ink2)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

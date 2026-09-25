@@ -224,10 +224,9 @@ struct CaptureView: View {
         HStack {
             Chip(title: "Cancel") { dismiss() }
             Spacer()
-            Text("NEW ENTRY")
-                .font(.utility(10.5))
-                .tracking(1.4)
-                .foregroundStyle(Palette.meta)
+            Text("New entry")
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
             Spacer()
             Chip(title: "Save", isOn: canSave) {
                 guard canSave else { return }
@@ -688,10 +687,9 @@ struct DatePickerSheet: View {
             HStack {
                 Chip(title: "Done", isOn: true) { dismiss() }
                 Spacer()
-                Text("ENTRY DATE")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Entry date")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Chip(title: "Now") { date = .now }
             }

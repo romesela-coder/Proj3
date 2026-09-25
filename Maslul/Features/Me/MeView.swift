@@ -32,7 +32,7 @@ struct MeView: View {
 
                 stats
 
-                SectionLabel(text: "WEEKLY").padding(.top, 20).padding(.bottom, 2)
+                SectionLabel(text: "Weekly").padding(.top, 20).padding(.bottom, 2)
 
                 Button { router.startAllocation() } label: {
                     SettingRow(
@@ -217,9 +217,8 @@ struct MeView: View {
                 .font(.display(24))
                 .foregroundStyle(Palette.ink)
             Text(label)
-                .font(.utility(10.5))
-                .tracking(1.2)
-                .foregroundStyle(Palette.meta)
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)

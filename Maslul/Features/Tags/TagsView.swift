@@ -28,7 +28,7 @@ struct TagsView: View {
                         .padding(.bottom, 10)
                         .tagListRow()
 
-                    SectionLabel(text: "GROUPS")
+                    SectionLabel(text: "Groups")
                         .tagListRow()
 
                     ForEach(visibleGroups) { group in
@@ -250,7 +250,7 @@ private struct TagGroupDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        SectionLabel(text: "TAGS")
+                        SectionLabel(text: "Tags")
                             .padding(.bottom, 10)
 
                         TagCloudLayout(spacing: 8) {
@@ -349,17 +349,17 @@ private struct TagGroupEditView: View {
 
     var body: some View {
         editorShell(
-            title: "TAG GROUP",
+            title: "Tag group",
             height: 330,
             canSave: TagNameRules.isValid(group.name),
             save: save,
             cancel: cancel
         ) {
-            editorField(label: "NAME", placeholder: "People, Projects…", text: $group.name)
+            editorField(label: "Name", placeholder: "People, Projects…", text: $group.name)
                 .focused($focusedField, equals: .name)
 
             VStack(alignment: .leading, spacing: 7) {
-                SectionLabel(text: "ICON")
+                SectionLabel(text: "Icon")
                 TextField("🏷️", text: $group.emoji)
                     .font(.system(size: 28))
                     .multilineTextAlignment(.center)
@@ -369,7 +369,7 @@ private struct TagGroupEditView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "SELECTION")
+                SectionLabel(text: "Selection")
                 HStack(spacing: 8) {
                     Chip(title: "One", isOn: !group.allowsMultiple) { group.allowsMultiple = false }
                     Chip(title: "Multiple", isOn: group.allowsMultiple) { group.allowsMultiple = true }
@@ -426,13 +426,13 @@ private struct TagEditView: View {
 
     var body: some View {
         editorShell(
-            title: "TAG",
+            title: "Tag",
             height: 305,
             canSave: TagNameRules.isValid(tag.name) && isUnique,
             save: save,
             cancel: cancel
         ) {
-            editorField(label: "NAME", placeholder: "Tag name", text: $tag.name)
+            editorField(label: "Name", placeholder: "Tag name", text: $tag.name)
                 .focused($focusedField, equals: .name)
 
             if !isUnique {
@@ -442,7 +442,7 @@ private struct TagEditView: View {
             }
 
             VStack(alignment: .leading, spacing: 9) {
-                SectionLabel(text: "COLOR")
+                SectionLabel(text: "Color")
                 HStack(spacing: 10) {
                     ForEach(TagColorOption.allCases) { option in
                         Button {
@@ -709,7 +709,7 @@ private func editorShell<Content: View>(
         HStack {
             Chip(title: "Cancel", action: cancel)
             Spacer()
-            Text(title).font(.utility(10.5)).tracking(1.4).foregroundStyle(Palette.meta)
+            Text(title).font(.bodyText(12.5, weight: .medium)).foregroundStyle(Palette.ink2)
             Spacer()
             Chip(title: "Save", isOn: canSave, action: save)
                 .opacity(canSave ? 1 : 0.45)

@@ -241,9 +241,8 @@ struct EntryPointsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 8) {
                                 Text(item.0)
-                                    .font(.utility(10.5))
-                                    .tracking(1.2)
-                                    .foregroundStyle(Palette.meta)
+                                    .font(.bodyText(12.5, weight: .medium))
+                                    .foregroundStyle(Palette.ink2)
                                 Text(item.1)
                                     .font(.bodyText(15, weight: .semibold))
                                     .foregroundStyle(Palette.ink)
@@ -310,9 +309,8 @@ struct RoadmapView: View {
                     ForEach(items, id: \.1) { item in
                         HStack(alignment: .top, spacing: 12) {
                             Text(item.0)
-                                .font(.utility(10.5))
-                                .tracking(1.2)
-                                .foregroundStyle(Palette.meta)
+                                .font(.bodyText(12.5, weight: .medium))
+                                .foregroundStyle(Palette.ink2)
                                 .frame(width: 32, alignment: .leading)
                                 .padding(.top, 2)
                             VStack(alignment: .leading, spacing: 3) {

@@ -121,9 +121,8 @@ struct QuarterCloseView: View {
             Chip(title: "ביטול") { dismiss() }
             Spacer()
             Text("סגירת רבעון")
-                .font(.utility(10.5))
-                .tracking(1.4)
-                .foregroundStyle(Palette.meta)
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
             Spacer()
             Color.clear.frame(width: 60, height: Metrics.tapTarget)
         }

@@ -143,10 +143,9 @@ struct EntryIconPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("ENTRY ICON")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Entry icon")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Button("Done") { dismiss() }
                     .font(.bodyText(14, weight: .semibold))

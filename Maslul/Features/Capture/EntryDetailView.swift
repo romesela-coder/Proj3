@@ -224,7 +224,7 @@ struct EntryDetailView: View {
 
     private var metadataPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
-            metadataGroup("TYPE") {
+            metadataGroup("Type") {
                 chipFlow {
                     ForEach(EntryType.allCases) { candidate in
                         Chip(title: candidate.title, isOn: entry.type == candidate) {
@@ -234,7 +234,7 @@ struct EntryDetailView: View {
                 }
             }
 
-            metadataGroup("PROJECT") {
+            metadataGroup("Project") {
                 Button {
                     guard !activeProjects.isEmpty else { return }
                     showProjectPicker = true
@@ -244,7 +244,7 @@ struct EntryDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            metadataGroup("GOAL") {
+            metadataGroup("Goal") {
                 chipFlow {
                     Button { showGoalPicker = true } label: {
                         Chip(
@@ -266,7 +266,7 @@ struct EntryDetailView: View {
                 }
             }
 
-            metadataGroup("ORIGIN & EFFORT") {
+            metadataGroup("Origin & effort") {
                 chipFlow {
                     Chip(title: entry.originOverride?.shortTitle ?? "From project", isOn: entry.originOverride != nil) {
                         mutate { entry.originOverride = entry.originOverride == nil ? .selfInitiated : nil }
@@ -580,7 +580,7 @@ struct EntryDetailView: View {
 
     private var dateRow: some View {
         Button { showDatePicker = true } label: {
-            DetailRow(label: "DATE", trailingChevron: true) {
+            DetailRow(label: "Date", trailingChevron: true) {
                 Text(Fmt.longDate(entry.createdAt))
                     .font(.bodyText(15))
                     .foregroundStyle(Palette.ink)
@@ -603,7 +603,7 @@ struct EntryDetailView: View {
 
     private var evidenceRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(text: "ATTACHMENTS")
+            SectionLabel(text: "Attachments")
                 .padding(.top, 15)
 
             HStack(spacing: 8) {

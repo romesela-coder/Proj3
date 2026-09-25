@@ -48,9 +48,8 @@ struct OnboardingView: View {
             Color.clear.frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
             Spacer()
             Text("\(step + 1) מתוך \(stepCount)")
-                .font(.utility(10.5))
-                .tracking(1.4)
-                .foregroundStyle(Palette.meta)
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
             Spacer()
             Chip(title: "דלג") { finish() }
         }

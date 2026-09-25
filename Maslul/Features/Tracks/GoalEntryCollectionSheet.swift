@@ -148,23 +148,7 @@ struct GoalEntryCollectionSheet: View {
                 }
             }
             .screenBackground()
-            .navigationTitle("Checkpoint")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Menu("Manage") {
-                        Button("Edit checkpoint", systemImage: "pencil") {
-                            isEditingCheckpoint = true
-                        }
-                        Button("Delete checkpoint", systemImage: "trash", role: .destructive) {
-                            isConfirmingDelete = true
-                        }
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $selectedEntry) { entry in
                 EntryDetailView(entry: entry)
             }
@@ -200,29 +184,47 @@ struct GoalEntryCollectionSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .top, spacing: 10) {
+                if isEditingHeader {
+                    TextField("Checkpoint name", text: $headerTitle, axis: .vertical)
+                        .font(.display(29))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1...3)
+                        .focused($focusedHeaderField, equals: .title)
+                } else {
+                    Button { beginHeaderEditing(.title) } label: {
+                        Text(checkpoint.title)
+                            .font(.display(29))
+                            .displayTracking(29)
+                            .foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit checkpoint name: \(checkpoint.title)")
+                }
+
+                Menu {
+                    Button("Edit checkpoint", systemImage: "pencil") {
+                        isEditingCheckpoint = true
+                    }
+                    Button("Delete checkpoint", systemImage: "trash", role: .destructive) {
+                        isConfirmingDelete = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.ink2)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Palette.neutralTile))
+                }
+                .accessibilityLabel("Manage checkpoint")
+            }
+
             Text(goal.title)
                 .font(.bodyText(13, weight: .medium))
                 .foregroundStyle(Palette.meta)
-
-            if isEditingHeader {
-                TextField("Checkpoint name", text: $headerTitle, axis: .vertical)
-                    .font(.display(29))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1...3)
-                    .focused($focusedHeaderField, equals: .title)
-            } else {
-                Button { beginHeaderEditing(.title) } label: {
-                    Text(checkpoint.title)
-                        .font(.display(29))
-                        .displayTracking(29)
-                        .foregroundStyle(Palette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Edit checkpoint name: \(checkpoint.title)")
-            }
 
             if isEditingHeader {
                 TextField("Description (optional)", text: $headerDetails, axis: .vertical)
@@ -283,7 +285,7 @@ struct GoalEntryCollectionSheet: View {
 
     private var timelineHeader: some View {
         HStack {
-            SectionLabel(text: "TIMELINE")
+            SectionLabel(text: "Timeline")
             Spacer()
             if timelineEditMode.isEditing {
                 Button("Done") {

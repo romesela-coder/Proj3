@@ -54,10 +54,9 @@ struct EntryGoalPicker: View {
                 .font(.bodyText(14, weight: .semibold))
                 .foregroundStyle(Palette.ink2)
             } else {
-                Text("GOAL")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Goal")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
             }
 
             Spacer()
@@ -155,7 +154,7 @@ struct EntryGoalPicker: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 17) {
                 VStack(alignment: .leading, spacing: 7) {
-                    SectionLabel(text: "NAME")
+                    SectionLabel(text: "Name")
                     TextField("Goal name", text: $title)
                         .font(.bodyText(16))
                         .textFieldStyle(.plain)
@@ -168,7 +167,7 @@ struct EntryGoalPicker: View {
                         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line))
                 }
 
-                SectionLabel(text: "OPTIONAL CONTEXT")
+                SectionLabel(text: "Optional context")
                 contextField("Why does this matter to you?", text: $motivation)
                 contextField("What would you like to change?", text: $desiredChange)
                 contextField("What feels difficult right now?", text: $currentChallenge)

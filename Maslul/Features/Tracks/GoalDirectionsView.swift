@@ -98,10 +98,10 @@ struct GoalDirectionsView: View {
                             .foregroundStyle(Palette.ink2)
                     }
 
-                    directionGroup("START HERE", options: GoalDirectionCatalog.suggested)
-                    directionGroup("CHECK IN", options: GoalDirectionCatalog.checkIn)
-                    directionGroup("UNTANGLE SOMETHING", options: GoalDirectionCatalog.untangle)
-                    directionGroup("LOOK BACK / LOOK AHEAD", options: GoalDirectionCatalog.reflect)
+                    directionGroup("Start here", options: GoalDirectionCatalog.suggested)
+                    directionGroup("Check in", options: GoalDirectionCatalog.checkIn)
+                    directionGroup("Untangle something", options: GoalDirectionCatalog.untangle)
+                    directionGroup("Look back / look ahead", options: GoalDirectionCatalog.reflect)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.hMargin)

@@ -16,9 +16,8 @@ struct EntryRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let type = entry.type {
                     Text(type.title)
-                        .font(.utility(10.5))
-                        .tracking(1.2)
-                        .foregroundStyle(Palette.meta)
+                        .font(.bodyText(12.5, weight: .medium))
+                        .foregroundStyle(Palette.ink2)
                 }
 
                 if entry.isGeneratingTitle {

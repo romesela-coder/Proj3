@@ -98,10 +98,9 @@ struct EntryBoxPicker: View {
                     .font(.bodyText(14, weight: .semibold))
                     .foregroundStyle(Palette.ink2)
             } else {
-                Text("BOX")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Box")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
             }
 
             Spacer()
@@ -185,7 +184,7 @@ struct EntryBoxPicker: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 7) {
-                    SectionLabel(text: "NAME")
+                    SectionLabel(text: "Name")
                     TextField("Box name", text: $draftName)
                         .font(.bodyText(16))
                         .textFieldStyle(.plain)
@@ -204,7 +203,7 @@ struct EntryBoxPicker: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionLabel(text: "ICON")
+                    SectionLabel(text: "Icon")
                     LazyVGrid(columns: iconColumns, spacing: 10) {
                         ForEach(EntryIconChoice.allCases) { choice in
                             Button { draftSymbol = choice.symbol } label: {

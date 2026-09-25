@@ -56,7 +56,7 @@ struct EntryReminderPicker: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionLabel(text: "DELIVERY")
+                        SectionLabel(text: "Delivery")
                         HStack(spacing: 8) {
                             ForEach(EntryReminderDelivery.allCases) { option in
                                 Button { selectedDelivery = option } label: {
@@ -139,7 +139,7 @@ struct EntryReminderPicker: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionLabel(text: "CUSTOM")
+                        SectionLabel(text: "Custom")
                         DatePicker(
                             "Date and time",
                             selection: $selectedAt,

@@ -74,7 +74,7 @@ struct EntryRemindersView: View {
                         )
                     }
                 } header: {
-                    SectionLabel(text: "UPCOMING")
+                    SectionLabel(text: "Upcoming")
                 }
             }
 
@@ -88,7 +88,7 @@ struct EntryRemindersView: View {
                         )
                     }
                 } header: {
-                    SectionLabel(text: "ARCHIVED")
+                    SectionLabel(text: "Archived")
                 }
             }
         }
