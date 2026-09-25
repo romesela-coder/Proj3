@@ -125,8 +125,7 @@ struct GoalsOverviewView: View {
     }
 }
 
-/// One goal journey: ordered checkpoints with their entries, followed by
-/// goal notes that were written without choosing a checkpoint.
+/// One compact, ordered roadmap. Each step opens its own entry collection.
 struct GoalDetailSheet: View {
     let goal: Goal
 
@@ -139,15 +138,14 @@ struct GoalDetailSheet: View {
     @Query(sort: \EntryBox.sortIndex, order: .forward) private var boxes: [EntryBox]
     @Query(sort: \EntryTag.name, order: .forward) private var tags: [EntryTag]
 
-    @State private var selectedEntry: Entry?
-    @State private var editingCheckpoint: GoalCheckpoint?
+    @State private var viewingCheckpoint: GoalCheckpoint?
+    @State private var isViewingGoalNotes = false
     @State private var isAddingCheckpoint = false
     @State private var isImportingBox = false
     @State private var checkpointEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
     @State private var selectedPrompt: TrackQuestion?
-    @State private var selectedCheckpoint: GoalCheckpoint?
     @State private var text = ""
     @State private var selectedTags: [EntryTag] = []
     @State private var selectedBox: EntryBox?
@@ -223,28 +221,6 @@ struct GoalDetailSheet: View {
 
                 if isWriting {
                     VStack(spacing: 9) {
-                        if let selectedCheckpoint {
-                            HStack(spacing: 8) {
-                                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text(selectedCheckpoint.title)
-                                    .lineLimit(1)
-                                Spacer()
-                                Button {
-                                    self.selectedCheckpoint = nil
-                                } label: {
-                                    Image(systemName: "xmark")
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Remove checkpoint link")
-                            }
-                            .font(.bodyText(12, weight: .medium))
-                            .foregroundStyle(Palette.ink2)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 10)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.neutralTile))
-                            .padding(.horizontal, 8)
-                        }
                         if selectedPrompt == nil {
                             EntryDirectionAccessory(open: openDirections)
                         }
@@ -291,8 +267,11 @@ struct GoalDetailSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .sheet(item: $selectedEntry) { entry in
-                EntryDetailView(entry: entry)
+            .sheet(item: $viewingCheckpoint) { checkpoint in
+                GoalEntryCollectionSheet(goal: goal, checkpoint: checkpoint)
+            }
+            .sheet(isPresented: $isViewingGoalNotes) {
+                GoalEntryCollectionSheet(goal: goal, checkpoint: nil)
             }
             .sheet(isPresented: $isAddingCheckpoint) {
                 GoalCheckpointEditor(goal: goal, nextSortIndex: checkpoints.count)
@@ -304,9 +283,6 @@ struct GoalDetailSheet: View {
                     entries: allEntries,
                     nextSortIndex: checkpoints.count
                 )
-            }
-            .sheet(item: $editingCheckpoint) { checkpoint in
-                GoalCheckpointEditor(goal: goal, checkpoint: checkpoint)
             }
             .sheet(isPresented: $isChoosingDirection, onDismiss: {
                 withAnimation(Motion.spring) { isWriting = true }
@@ -420,88 +396,9 @@ struct GoalDetailSheet: View {
     }
 
     private func checkpointShelf(_ checkpoint: GoalCheckpoint) -> some View {
-        let linkedEntries = entries
-            .filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }
-            .sorted { $0.createdAt > $1.createdAt }
+        let entryCount = entries.filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }.count
 
-        return VStack(alignment: .leading, spacing: 11) {
-            Button {
-                editingCheckpoint = checkpoint
-            } label: {
-                HStack(alignment: .top, spacing: 9) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(checkpoint.title)
-                            .font(.bodyText(17, weight: .semibold))
-                            .foregroundStyle(Palette.ink)
-                            .multilineTextAlignment(.leading)
-                        if let details = checkpoint.details, !details.isEmpty {
-                            Text(details)
-                                .font(.bodyText(13.5))
-                                .foregroundStyle(Palette.ink2)
-                                .multilineTextAlignment(.leading)
-                        }
-                    }
-                    Spacer(minLength: 5)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.meta)
-                        .padding(.top, 5)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(checkpointEditMode.isEditing)
-
-            HStack(spacing: 10) {
-                if let completedAt = checkpoint.completedAt {
-                    Label("Completed \(completedAt.formatted(.dateTime.day().month(.abbreviated)))", systemImage: "checkmark")
-                }
-                if let dueAt = checkpoint.dueAt {
-                    Label("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))", systemImage: "calendar")
-                }
-                Text(linkedEntries.count == 1 ? "1 entry" : "\(linkedEntries.count) entries")
-            }
-            .font(.utility(11))
-            .foregroundStyle(Palette.meta)
-
-            if !linkedEntries.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 10) {
-                        ForEach(linkedEntries) { entry in
-                            Button { selectedEntry = entry } label: {
-                                BoxEntryCard(entry: entry)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.trailing, Metrics.hMargin)
-                }
-            }
-
-            Button {
-                beginWriting(for: checkpoint)
-            } label: {
-                Label(linkedEntries.isEmpty ? "Write about this step" : "Add another entry", systemImage: "square.and.pencil")
-                    .font(.bodyText(12.5, weight: .medium))
-                    .foregroundStyle(Palette.ink2)
-            }
-            .buttonStyle(.plain)
-            .disabled(checkpointEditMode.isEditing)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 29)
-        .padding(.bottom, 22)
-        .overlay(alignment: .topLeading) {
-            Rectangle()
-                .fill(
-                    checkpoint.persistentModelID == checkpoints.last?.persistentModelID && entriesBeyondCheckpoints.isEmpty
-                        ? Color.clear : Palette.line
-                )
-                .frame(width: 1)
-                .padding(.leading, 9)
-                .padding(.top, 20)
-        }
-        .overlay(alignment: .topLeading) {
+        return HStack(alignment: .top, spacing: 9) {
             Button {
                 checkpoint.completedAt = checkpoint.completedAt == nil ? .now : nil
                 try? context.save()
@@ -514,6 +411,62 @@ struct GoalDetailSheet: View {
             .buttonStyle(.plain)
             .disabled(checkpointEditMode.isEditing)
             .accessibilityLabel(checkpoint.completedAt == nil ? "Complete checkpoint" : "Reopen checkpoint")
+
+            Button {
+                viewingCheckpoint = checkpoint
+            } label: {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(checkpoint.title)
+                            .font(.bodyText(17, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 5)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.meta)
+                            .padding(.top, 5)
+                    }
+
+                    if let details = checkpoint.details, !details.isEmpty {
+                        Text(details)
+                            .font(.bodyText(13.5))
+                            .foregroundStyle(Palette.ink2)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    HStack(spacing: 10) {
+                        if checkpoint.completedAt != nil {
+                            Text("Completed")
+                        }
+                        if let dueAt = checkpoint.dueAt {
+                            Text("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))")
+                        }
+                        Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
+                    }
+                    .font(.utility(11))
+                    .foregroundStyle(Palette.meta)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(checkpointEditMode.isEditing)
+            .accessibilityLabel("Open \(checkpoint.title), \(entryCount) entries")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+        .overlay(alignment: .topLeading) {
+            Rectangle()
+                .fill(
+                    checkpoint.persistentModelID == checkpoints.last?.persistentModelID && entriesBeyondCheckpoints.isEmpty
+                        ? Color.clear : Palette.line
+                )
+                .frame(width: 1)
+                .padding(.leading, 9)
+                .padding(.top, 32)
+                .allowsHitTesting(false)
         }
     }
 
@@ -527,42 +480,44 @@ struct GoalDetailSheet: View {
     }
 
     private var goalNotesShelf: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            Text("Along the way")
-                .font(.bodyText(17, weight: .semibold))
-                .foregroundStyle(Palette.ink)
+        Button {
+            isViewingGoalNotes = true
+        } label: {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Palette.ink2)
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(Palette.neutralTile))
 
-            Text(entriesBeyondCheckpoints.count == 1
-                 ? "1 goal note"
-                 : "\(entriesBeyondCheckpoints.count) goal notes")
-                .font(.utility(11))
-                .foregroundStyle(Palette.meta)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(entriesBeyondCheckpoints) { entry in
-                        Button { selectedEntry = entry } label: {
-                            BoxEntryCard(entry: entry)
-                        }
-                        .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text("Along the way")
+                            .font(.bodyText(17, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.meta)
+                    }
+                    Text(entriesBeyondCheckpoints.count == 1
+                         ? "1 goal note"
+                         : "\(entriesBeyondCheckpoints.count) goal notes")
+                        .font(.utility(11))
+                        .foregroundStyle(Palette.meta)
+                    if let latest = entriesBeyondCheckpoints.first {
+                        Text(latest.body)
+                            .font(.bodyText(13))
+                            .foregroundStyle(Palette.ink2)
+                            .lineLimit(1)
                     }
                 }
-                .padding(.trailing, Metrics.hMargin)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 29)
-        .padding(.bottom, 22)
-        .overlay(alignment: .topLeading) {
-            Circle()
-                .fill(Palette.neutralTile)
-                .frame(width: 20, height: 20)
-                .overlay {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.ink2)
-                }
-        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 12)
     }
 
     private func openDirections() {
@@ -570,51 +525,28 @@ struct GoalDetailSheet: View {
         isChoosingDirection = true
     }
 
-    private func beginWriting(for checkpoint: GoalCheckpoint? = nil) {
+    private func beginWriting() {
         selectedPrompt = nil
-        selectedCheckpoint = checkpoint
         selectedBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
         withAnimation(Motion.spring) { isWriting = true }
     }
 
     private func saveEntry() {
-        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return }
-        let entry = Entry(body: body)
-        CalendarEntryOrdering.placeAtFront(entry, in: context)
-        entry.goal = goal
-        entry.checkpoint = selectedCheckpoint
-        entry.tags = selectedTags
-        entry.reflectionPromptID = selectedPrompt?.id
-        entry.reflectionPromptText = selectedPrompt?.text
-        entry.reminderAt = reminderAt
-        entry.reminderDelivery = reminderDelivery
-        EntryBoxEntryOrdering.move(
-            entry,
-            to: selectedBox ?? EntryBoxBootstrap.inbox(in: context)
-        )
-        context.insert(entry)
-        try? context.save()
-
-        if entry.reminderAt != nil {
-            Task { @MainActor in
-                _ = await EntryReminderScheduler.schedule(entry)
-                try? context.save()
-            }
-        }
-        Task { @MainActor in
-            entry.titleText = await LocalMetadataGenerator.title(
-                for: body,
-                projectName: nil,
-                type: nil
-            )
-            try? context.save()
-        }
+        guard GoalEntryCreation.save(
+            text: text,
+            goal: goal,
+            checkpoint: nil,
+            tags: selectedTags,
+            prompt: selectedPrompt,
+            box: selectedBox,
+            reminderAt: reminderAt,
+            reminderDelivery: reminderDelivery,
+            in: context
+        ) else { return }
 
         text = ""
         selectedTags = []
         selectedPrompt = nil
-        selectedCheckpoint = nil
         selectedBox = nil
         reminderAt = nil
         selection = NSRange(location: 0, length: 0)

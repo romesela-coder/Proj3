@@ -961,7 +961,7 @@ private struct NativeReorderableEntryGrid: UIViewRepresentable {
     }
 }
 
-private struct FocusedBoxEntryCard: View {
+struct FocusedBoxEntryCard: View {
     let entry: Entry
 
     private let cardAspectRatio: CGFloat = 226 / 126

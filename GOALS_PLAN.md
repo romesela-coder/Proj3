@@ -3,7 +3,7 @@
 ## Product model
 
 - An **Entry** is a dated journal record. The global + always starts an Entry. It may have no Goal, a Goal, or a Goal plus a Checkpoint. It remains one record in the daily journal and can also appear in the Goal timeline and a Checkpoint shelf.
-- A **Goal** is the home for a specific intention. Its screen has one user-ordered roadmap, with Entries shown as cards inside their Checkpoint or in an "Along the way" shelf when they have no Checkpoint.
+- A **Goal** is the home for a specific intention. Its screen has one compact, user-ordered roadmap. Each Checkpoint opens a focused view of its Entries; Goal notes without a Checkpoint open from an "Along the way" row.
 - A **Checkpoint** is a manually created plan step. It can be a small task with zero Entries or a larger milestone with many. Its order is manual; an optional target date is metadata and never changes silently when the step is moved. Completion is explicit.
 - **Boxes** remain intact during this experiment. They are not automatically equivalent to Checkpoints: names such as Inbox and Done describe workflow states, while some other Boxes may describe work areas rather than finishable milestones.
 
@@ -11,7 +11,7 @@
 
 - Create, edit, delete, complete/reopen, and reorder Checkpoints inside a Goal. Deleting a Checkpoint leaves its Entries in the Goal and journal.
 - Create an Entry from a Checkpoint with its Goal and Checkpoint links preselected, or add/change its Checkpoint later in Entry details. A Goal Entry does not require a Checkpoint.
-- Show linked Entries as the same small horizontal cards used on the Boxes board, with a vertical roadmap rail. The redundant second timeline was removed; the daily journal remains the chronological view.
+- Show compact Checkpoint previews on the vertical roadmap. Tapping one opens a dedicated two-column Entry grid using the same cards as a focused Box. The dedicated view owns its contextual + action, while the + on the Goal itself writes an unassigned Goal note. The redundant second timeline remains removed; the daily journal remains the chronological view.
 - Optional **Use an existing Box** bridge: the user previews a Box, then creates a new Checkpoint with its name. Only Entries with no Goal or already in this Goal and no Checkpoint are linked. The Box, its membership, other Goals, and Entry content are preserved. Nothing is imported automatically.
 - The old Boxes screen and composer classification remain accessible while this layout is evaluated.
 

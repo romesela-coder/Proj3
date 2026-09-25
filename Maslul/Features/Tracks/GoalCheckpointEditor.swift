@@ -5,6 +5,7 @@ struct GoalCheckpointEditor: View {
     let goal: Goal
     let checkpoint: GoalCheckpoint?
     let nextSortIndex: Int
+    let onDelete: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -15,10 +16,11 @@ struct GoalCheckpointEditor: View {
     @State private var dueAt: Date
     @State private var isConfirmingDelete = false
 
-    init(goal: Goal, checkpoint: GoalCheckpoint? = nil, nextSortIndex: Int = 0) {
+    init(goal: Goal, checkpoint: GoalCheckpoint? = nil, nextSortIndex: Int = 0, onDelete: (() -> Void)? = nil) {
         self.goal = goal
         self.checkpoint = checkpoint
         self.nextSortIndex = nextSortIndex
+        self.onDelete = onDelete
         _title = State(initialValue: checkpoint?.title ?? "")
         _details = State(initialValue: checkpoint?.details ?? "")
         _hasDueDate = State(initialValue: checkpoint?.dueAt != nil)
@@ -112,5 +114,8 @@ struct GoalCheckpointEditor: View {
         context.delete(checkpoint)
         try? context.save()
         dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            onDelete?()
+        }
     }
 }
