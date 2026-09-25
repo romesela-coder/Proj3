@@ -267,7 +267,7 @@ struct GoalDetailSheet: View {
                     goalHeader
                         .padding(.horizontal, Metrics.hMargin)
                         .padding(.top, 25)
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 16)
                         .journalListRow()
 
                     roadmapHeader
@@ -385,7 +385,7 @@ struct GoalDetailSheet: View {
     }
 
     private var goalHeader: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(goal.title)
                 .font(.display(29))
                 .displayTracking(29)
@@ -398,23 +398,18 @@ struct GoalDetailSheet: View {
                     .foregroundStyle(Palette.ink2)
             }
 
-            ChipFlow(spacing: 7, rowSpacing: 7) {
-                goalFact(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
-                if !checkpoints.isEmpty {
-                    goalFact("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) checkpoints")
+            HStack(spacing: 6) {
+                Text(checkpoints.isEmpty
+                     ? "No checkpoints yet"
+                     : "\(checkpoints.filter { $0.completedAt != nil }.count)/\(checkpoints.count) checkpoints complete")
+                if !entries.isEmpty {
+                    Text("·")
+                    Text(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
                 }
-                goalFact("Started \((goal.trackCreatedAt ?? goal.createdAt).formatted(.dateTime.day().month(.abbreviated)))")
             }
+            .font(.bodyText(12.5, weight: .medium))
+            .foregroundStyle(Palette.meta)
         }
-    }
-
-    private func goalFact(_ title: String) -> some View {
-        Text(title)
-            .font(.bodyText(12, weight: .medium))
-            .foregroundStyle(Palette.ink2)
-            .padding(.horizontal, 10)
-            .frame(minHeight: 31)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Palette.neutralTile))
     }
 
     private var roadmapHeader: some View {
@@ -502,12 +497,13 @@ struct GoalDetailSheet: View {
             Button {
                 viewingCheckpoint = checkpoint
             } label: {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .top, spacing: 8) {
                         Text(checkpoint.title)
                             .font(.bodyText(17, weight: .semibold))
                             .foregroundStyle(Palette.ink)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 5)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
@@ -515,35 +511,34 @@ struct GoalDetailSheet: View {
                             .padding(.top, 5)
                     }
 
-                    if let details = checkpoint.details, !details.isEmpty {
-                        Text(details)
-                            .font(.bodyText(13.5))
-                            .foregroundStyle(Palette.ink2)
-                            .lineLimit(1)
-                            .multilineTextAlignment(.leading)
-                    }
-
-                    HStack(spacing: 10) {
-                        if checkpoint.completedAt != nil {
-                            Text("Completed")
+                    if checkpoint.completedAt != nil || checkpoint.dueAt != nil || entryCount > 0 {
+                        HStack(spacing: 10) {
+                            if checkpoint.completedAt != nil {
+                                Text("Completed")
+                            }
+                            if let dueAt = checkpoint.dueAt {
+                                Text("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))")
+                            }
+                            if entryCount > 0 {
+                                Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
+                            }
                         }
-                        if let dueAt = checkpoint.dueAt {
-                            Text("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))")
-                        }
-                        Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
+                        .font(.utility(11))
+                        .foregroundStyle(Palette.meta)
                     }
-                    .font(.utility(11))
-                    .foregroundStyle(Palette.meta)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(roadmapEditMode.isEditing)
-            .accessibilityLabel("Open \(checkpoint.title), \(entryCount) entries")
+            .accessibilityLabel(entryCount == 0
+                ? "Open \(checkpoint.title)"
+                : "Open \(checkpoint.title), \(entryCount) entries")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+        .frame(minHeight: 44, alignment: .top)
+        .padding(.vertical, 9)
         .overlay(alignment: .topLeading) {
             Rectangle()
                 .fill(
