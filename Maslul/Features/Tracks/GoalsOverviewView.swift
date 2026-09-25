@@ -432,7 +432,9 @@ struct GoalDetailSheet: View {
             if hasGoalContext {
                 VStack(alignment: .leading, spacing: 13) {
                     Button {
-                        withAnimation(Motion.spring) { isContextExpanded.toggle() }
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            isContextExpanded.toggle()
+                        }
                     } label: {
                         HStack(alignment: .top, spacing: 12) {
                             Text(contextPreview)
@@ -443,9 +445,8 @@ struct GoalDetailSheet: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: isContextExpanded ? "chevron.up" : "chevron.down")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Palette.ink2)
-                                .frame(width: 28, height: 28)
-                                .background(Circle().fill(Palette.neutralTile))
+                                .foregroundStyle(Palette.meta)
+                                .frame(width: 24, height: 24)
                         }
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
@@ -468,6 +469,7 @@ struct GoalDetailSheet: View {
                                 .foregroundStyle(Palette.ink)
                         }
                         .padding(.top, 1)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
             } else {
@@ -545,11 +547,14 @@ struct GoalDetailSheet: View {
             Button {
                 isAddingCheckpoint = true
             } label: {
-                Label("Checkpoint", systemImage: "plus")
-                    .font(.bodyText(12, weight: .semibold))
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(Palette.ink)
+            .accessibilityLabel("Add checkpoint")
         }
     }
 
