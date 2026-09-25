@@ -262,11 +262,23 @@ struct GoalDetailSheet: View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 List {
-                    goalHeader
+                    goalTitle
                         .padding(.horizontal, Metrics.hMargin)
                         .padding(.top, 44)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 4)
                         .journalListRow()
+
+                    goalContext
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.bottom, checkpoints.isEmpty ? 24 : 16)
+                        .journalListRow()
+
+                    if !checkpoints.isEmpty {
+                        goalProgress
+                            .padding(.horizontal, Metrics.hMargin)
+                            .padding(.bottom, 24)
+                            .journalListRow()
+                    }
 
                     roadmapHeader
                         .padding(.horizontal, Metrics.hMargin)
@@ -387,38 +399,33 @@ struct GoalDetailSheet: View {
         .presentationDragIndicator(.visible)
     }
 
-    private var goalHeader: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(goal.title)
-                .font(.display(29))
-                .displayTracking(29)
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
+    private var goalTitle: some View {
+        Text(goal.title)
+            .font(.display(29))
+            .displayTracking(29)
+            .foregroundStyle(Palette.ink)
+            .fixedSize(horizontal: false, vertical: true)
+    }
 
-            goalContext
+    private var goalProgress: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Progress")
+                .font(.bodyText(13, weight: .medium))
+                .foregroundStyle(Palette.ink2)
 
-            if !checkpoints.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Progress")
-                        .font(.bodyText(13, weight: .medium))
-                        .foregroundStyle(Palette.ink2)
-
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Palette.neutralTile)
-                            Capsule()
-                                .fill(Palette.control)
-                                .frame(width: geometry.size.width * checkpointProgress)
-                        }
-                    }
-                    .frame(height: 9)
-                    .animation(Motion.spring, value: checkpointProgress)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Checkpoint progress")
-                    .accessibilityValue("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) complete")
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Palette.neutralTile)
+                    Capsule()
+                        .fill(Palette.control)
+                        .frame(width: geometry.size.width * checkpointProgress)
                 }
-                .padding(.top, 3)
             }
+            .frame(height: 9)
+            .animation(Motion.spring, value: checkpointProgress)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Checkpoint progress")
+            .accessibilityValue("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) complete")
         }
     }
 
@@ -432,9 +439,7 @@ struct GoalDetailSheet: View {
             if hasGoalContext {
                 VStack(alignment: .leading, spacing: 13) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            isContextExpanded.toggle()
-                        }
+                        isContextExpanded.toggle()
                     } label: {
                         HStack(alignment: .top, spacing: 12) {
                             Text(contextPreview)
@@ -469,7 +474,6 @@ struct GoalDetailSheet: View {
                                 .foregroundStyle(Palette.ink)
                         }
                         .padding(.top, 1)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
             } else {
