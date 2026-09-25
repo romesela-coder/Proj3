@@ -9,7 +9,7 @@ struct GoalEntryCollectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
-    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse)
+    @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .forward)
     private var allEntries: [Entry]
     @Query(sort: \EntryBox.sortIndex, order: .forward)
     private var boxes: [EntryBox]
@@ -45,23 +45,17 @@ struct GoalEntryCollectionSheet: View {
                         header
 
                         VStack(alignment: .leading, spacing: 14) {
-                            SectionLabel(text: "ENTRIES")
+                            SectionLabel(text: "TIMELINE")
 
                             if entries.isEmpty {
                                 emptyState
                             } else {
-                                LazyVGrid(
-                                    columns: [
-                                        GridItem(.flexible(), spacing: 10),
-                                        GridItem(.flexible(), spacing: 10)
-                                    ],
-                                    spacing: 10
-                                ) {
+                                LazyVStack(alignment: .leading, spacing: 0) {
                                     ForEach(entries) { entry in
-                                        Button { selectedEntry = entry } label: {
-                                            FocusedBoxEntryCard(entry: entry)
-                                        }
-                                        .buttonStyle(.plain)
+                                        timelineRow(
+                                            entry,
+                                            isLast: entry.persistentModelID == entries.last?.persistentModelID
+                                        )
                                     }
                                 }
                             }
@@ -226,12 +220,66 @@ struct GoalEntryCollectionSheet: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(Palette.neutralTile))
     }
 
+    private func timelineRow(_ entry: Entry, isLast: Bool) -> some View {
+        Button { selectedEntry = entry } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Circle()
+                    .fill(Palette.ink2)
+                    .frame(width: 8, height: 8)
+                    .frame(width: 20, height: 20)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(entry.createdAt.formatted(.dateTime.day().month(.abbreviated).year()))
+                        .font(.utility(11))
+                        .foregroundStyle(Palette.meta)
+
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(entry.title)
+                            .font(.bodyText(16, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.meta)
+                            .padding(.top, 4)
+                    }
+
+                    if entry.title != entry.body {
+                        InlineMentionText(
+                            text: entry.body,
+                            tags: entry.tags,
+                            fontSize: 13,
+                            maximumNumberOfLines: 2,
+                            mentionAppearance: .compact
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 12)
+        .overlay(alignment: .topLeading) {
+            Rectangle()
+                .fill(isLast ? Color.clear : Palette.line)
+                .frame(width: 1)
+                .padding(.leading, 9)
+                .padding(.top, 32)
+                .allowsHitTesting(false)
+        }
+        .accessibilityLabel("Entry from \(entry.createdAt.formatted(date: .abbreviated, time: .omitted)): \(entry.title)")
+    }
+
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("No entries here yet")
+            Text("This checkpoint has no entries yet")
                 .font(.bodyText(15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
-            Text("A checkpoint can stand on its own. Write when there's something worth noting.")
+            Text("It can stand on its own. Use + to capture what happens along the way.")
                 .font(.bodyText(13.5))
                 .foregroundStyle(Palette.meta)
         }
