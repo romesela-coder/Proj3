@@ -125,7 +125,8 @@ struct GoalsOverviewView: View {
     }
 }
 
-/// A goal keeps its user-ordered plan beside its chronological journal.
+/// One goal journey: ordered checkpoints with their entries, followed by
+/// goal notes that were written without choosing a checkpoint.
 struct GoalDetailSheet: View {
     let goal: Goal
 
@@ -156,6 +157,14 @@ struct GoalDetailSheet: View {
 
     private var entries: [Entry] {
         allEntries.filter { $0.goal?.persistentModelID == goal.persistentModelID }
+    }
+
+    private var entriesBeyondCheckpoints: [Entry] {
+        let checkpointIDs = Set(checkpoints.map(\.persistentModelID))
+        return entries.filter { entry in
+            guard let checkpoint = entry.checkpoint else { return true }
+            return !checkpointIDs.contains(checkpoint.persistentModelID)
+        }
     }
 
     private var checkpoints: [GoalCheckpoint] {
@@ -197,9 +206,14 @@ struct GoalDetailSheet: View {
                         .onMove(perform: moveCheckpoints)
                     }
 
-                    timelineSection
-                        .padding(.horizontal, Metrics.hMargin)
-                        .padding(.bottom, isWriting ? 235 : 110)
+                    if !entriesBeyondCheckpoints.isEmpty {
+                        goalNotesShelf
+                            .padding(.horizontal, Metrics.hMargin)
+                            .journalListRow()
+                    }
+
+                    Color.clear
+                        .frame(height: isWriting ? 235 : 100)
                         .journalListRow()
                 }
                 .listStyle(.plain)
@@ -439,8 +453,11 @@ struct GoalDetailSheet: View {
             .disabled(checkpointEditMode.isEditing)
 
             HStack(spacing: 10) {
+                if let completedAt = checkpoint.completedAt {
+                    Label("Completed \(completedAt.formatted(.dateTime.day().month(.abbreviated)))", systemImage: "checkmark")
+                }
                 if let dueAt = checkpoint.dueAt {
-                    Label(dueAt.formatted(.dateTime.day().month(.abbreviated).year()), systemImage: "calendar")
+                    Label("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated)))", systemImage: "calendar")
                 }
                 Text(linkedEntries.count == 1 ? "1 entry" : "\(linkedEntries.count) entries")
             }
@@ -476,7 +493,10 @@ struct GoalDetailSheet: View {
         .padding(.bottom, 22)
         .overlay(alignment: .topLeading) {
             Rectangle()
-                .fill(checkpoint.persistentModelID == checkpoints.last?.persistentModelID ? Color.clear : Palette.line)
+                .fill(
+                    checkpoint.persistentModelID == checkpoints.last?.persistentModelID && entriesBeyondCheckpoints.isEmpty
+                        ? Color.clear : Palette.line
+                )
                 .frame(width: 1)
                 .padding(.leading, 9)
                 .padding(.top, 20)
@@ -506,61 +526,43 @@ struct GoalDetailSheet: View {
         try? context.save()
     }
 
-    private var timelineSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            SectionLabel(text: "TIMELINE")
-            if entries.isEmpty {
-                Text("No entries yet. A small thought is enough to begin.")
-                    .font(.bodyText(14))
-                    .foregroundStyle(Palette.meta)
-                    .padding(.vertical, 10)
-            } else {
-                ForEach(entries) { entry in
-                    Button { selectedEntry = entry } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(Fmt.stamp(entry.createdAt).uppercased())
-                                .font(.utility(10.5))
-                                .foregroundStyle(Palette.meta)
-                            if let prompt = entry.reflectionPromptText, !prompt.isEmpty {
-                                Text(prompt)
-                                    .font(.bodyText(12, weight: .medium))
-                                    .foregroundStyle(Palette.ink2)
-                                    .multilineTextAlignment(.leading)
-                            }
-                            if let checkpoint = entry.checkpoint {
-                                Text(checkpoint.title)
-                                    .font(.utility(10.5))
-                                    .foregroundStyle(Palette.ink2)
-                            }
-                            Text(entry.body)
-                                .font(.bodyText(15))
-                                .foregroundStyle(Palette.ink)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(4)
+    private var goalNotesShelf: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text("Along the way")
+                .font(.bodyText(17, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+
+            Text(entriesBeyondCheckpoints.count == 1
+                 ? "1 goal note"
+                 : "\(entriesBeyondCheckpoints.count) goal notes")
+                .font(.utility(11))
+                .foregroundStyle(Palette.meta)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(entriesBeyondCheckpoints) { entry in
+                        Button { selectedEntry = entry } label: {
+                            BoxEntryCard(entry: entry)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 30)
-                        .padding(.bottom, 24)
-                        .overlay(alignment: .topLeading) {
-                            Rectangle()
-                                .fill(entry.persistentModelID == entries.last?.persistentModelID ? Color.clear : Palette.line)
-                                .frame(width: 1)
-                                .padding(.leading, 4)
-                                .padding(.top, 12)
-                        }
-                        .overlay(alignment: .topLeading) {
-                            Circle()
-                                .fill(Palette.ink)
-                                .frame(width: 9, height: 9)
-                                .padding(.top, 3)
-                        }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.trailing, Metrics.hMargin)
             }
         }
-        .padding(.top, 35)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 29)
+        .padding(.bottom, 22)
+        .overlay(alignment: .topLeading) {
+            Circle()
+                .fill(Palette.neutralTile)
+                .frame(width: 20, height: 20)
+                .overlay {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Palette.ink2)
+                }
+        }
     }
 
     private func openDirections() {
