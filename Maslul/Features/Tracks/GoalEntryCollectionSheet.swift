@@ -18,6 +18,8 @@ struct GoalEntryCollectionSheet: View {
 
     @State private var selectedEntry: Entry?
     @State private var isEditingCheckpoint = false
+    @State private var isConfirmingDelete = false
+    @State private var isShowingDeleteError = false
     @State private var isWriting = false
     @State private var isChoosingDirection = false
     @State private var selectedPrompt: TrackQuestion?
@@ -122,7 +124,14 @@ struct GoalEntryCollectionSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Edit") { isEditingCheckpoint = true }
+                    Menu("Manage") {
+                        Button("Edit checkpoint", systemImage: "pencil") {
+                            isEditingCheckpoint = true
+                        }
+                        Button("Delete checkpoint", systemImage: "trash", role: .destructive) {
+                            isConfirmingDelete = true
+                        }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -133,6 +142,20 @@ struct GoalEntryCollectionSheet: View {
             }
             .sheet(isPresented: $isEditingCheckpoint) {
                 GoalCheckpointEditor(goal: goal, checkpoint: checkpoint, onDelete: { dismiss() })
+            }
+            .confirmationDialog(
+                "Delete this checkpoint?",
+                isPresented: $isConfirmingDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete checkpoint", role: .destructive, action: deleteCheckpoint)
+            } message: {
+                Text("Its entries will stay in the goal and journal.")
+            }
+            .alert("Couldn't delete checkpoint", isPresented: $isShowingDeleteError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please try again.")
             }
             .sheet(isPresented: $isChoosingDirection, onDismiss: {
                 withAnimation(Motion.spring) { isWriting = true }
@@ -226,6 +249,20 @@ struct GoalEntryCollectionSheet: View {
     private func openDirections() {
         isWriting = false
         isChoosingDirection = true
+    }
+
+    private func deleteCheckpoint() {
+        for entry in entries {
+            entry.checkpoint = nil
+        }
+        context.delete(checkpoint)
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            context.rollback()
+            isShowingDeleteError = true
+        }
     }
 
     private func saveEntry() {
