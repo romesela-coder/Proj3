@@ -57,9 +57,6 @@ struct GoalsOverviewView: View {
                         .font(.bodyText(17, weight: .semibold))
                         .foregroundStyle(Palette.ink)
                         .multilineTextAlignment(.leading)
-                    Text(goalEntries.count == 1 ? "1 entry" : "\(goalEntries.count) entries")
-                        .font(.utility(11))
-                        .foregroundStyle(Palette.meta)
                 }
                 Spacer(minLength: 5)
                 Image(systemName: "chevron.right")
@@ -142,6 +139,8 @@ struct GoalDetailSheet: View {
     @State private var selectedEntry: Entry?
     @State private var isAddingCheckpoint = false
     @State private var isImportingBox = false
+    @State private var isContextExpanded = false
+    @State private var isEditingContext = false
     @State private var roadmapEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
@@ -267,7 +266,12 @@ struct GoalDetailSheet: View {
                     goalHeader
                         .padding(.horizontal, Metrics.hMargin)
                         .padding(.top, 25)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 18)
+                        .journalListRow()
+
+                    goalContext
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.bottom, 24)
                         .journalListRow()
 
                     roadmapHeader
@@ -371,6 +375,9 @@ struct GoalDetailSheet: View {
             .sheet(isPresented: $isAddingCheckpoint) {
                 GoalCheckpointEditor(goal: goal, nextSortIndex: checkpoints.count)
             }
+            .sheet(isPresented: $isEditingContext) {
+                GoalContextEditor(goal: goal)
+            }
             .sheet(isPresented: $isImportingBox) {
                 GoalBoxImportSheet(
                     goal: goal,
@@ -393,24 +400,97 @@ struct GoalDetailSheet: View {
     }
 
     private var goalHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 18) {
             Text(goal.title)
                 .font(.display(29))
                 .displayTracking(29)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let motivation = goal.motivation, !motivation.isEmpty {
-                Text(motivation)
-                    .font(.bodyText(14))
-                    .foregroundStyle(Palette.ink2)
+            if !checkpoints.isEmpty {
+                VStack(alignment: .leading, spacing: 9) {
+                    SectionLabel(text: "PROGRESS")
+                    ProgressView(
+                        value: Double(checkpoints.filter { $0.completedAt != nil }.count),
+                        total: Double(checkpoints.count)
+                    )
+                    .progressViewStyle(.linear)
+                    .tint(Palette.control)
+                    .accessibilityLabel("Checkpoint progress")
+                    .accessibilityValue("\(checkpoints.filter { $0.completedAt != nil }.count) of \(checkpoints.count) complete")
+                }
             }
+        }
+    }
 
-            Text(checkpoints.isEmpty
-                 ? "No checkpoints yet"
-                 : "\(checkpoints.filter { $0.completedAt != nil }.count)/\(checkpoints.count) checkpoints complete")
-            .font(.bodyText(12.5, weight: .medium))
-            .foregroundStyle(Palette.meta)
+    private var goalContext: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(Motion.spring) { isContextExpanded.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    SectionLabel(text: "CONTEXT")
+                    Image(systemName: isContextExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.meta)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isContextExpanded ? "Hide goal context" : "Show goal context")
+            .accessibilityAddTraits(.isButton)
+
+            if isContextExpanded {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let motivation = nonemptyContext(goal.motivation) {
+                        contextAnswer("WHY IT MATTERS", text: motivation)
+                    }
+                    if let desiredChange = nonemptyContext(goal.desiredChange) {
+                        contextAnswer("WHAT SHOULD CHANGE", text: desiredChange)
+                    }
+                    if let currentChallenge = nonemptyContext(goal.currentChallenge) {
+                        contextAnswer("WHAT FEELS DIFFICULT", text: currentChallenge)
+                    }
+                    if !hasGoalContext {
+                        Text("Add a little context for this goal.")
+                            .font(.bodyText(14))
+                            .foregroundStyle(Palette.meta)
+                    }
+
+                    Button(hasGoalContext ? "Edit context" : "Add context") {
+                        isEditingContext = true
+                    }
+                    .font(.bodyText(13, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 16)
+            }
+        }
+        .overlay(alignment: .top) {
+            Rectangle().fill(Palette.lineSoft).frame(height: 1)
+        }
+    }
+
+    private var hasGoalContext: Bool {
+        nonemptyContext(goal.motivation) != nil
+            || nonemptyContext(goal.desiredChange) != nil
+            || nonemptyContext(goal.currentChallenge) != nil
+    }
+
+    private func nonemptyContext(_ value: String?) -> String? {
+        guard let text = value?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        return text
+    }
+
+    private func contextAnswer(_ label: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            SectionLabel(text: label)
+            Text(text)
+                .font(.bodyText(14))
+                .foregroundStyle(Palette.ink2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -640,5 +720,79 @@ struct GoalDetailSheet: View {
         reminderAt = nil
         selection = NSRange(location: 0, length: 0)
         withAnimation(Motion.spring) { isWriting = false }
+    }
+}
+
+private struct GoalContextEditor: View {
+    let goal: Goal
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @State private var motivation: String
+    @State private var desiredChange: String
+    @State private var currentChallenge: String
+    @State private var isShowingSaveError = false
+
+    init(goal: Goal) {
+        self.goal = goal
+        _motivation = State(initialValue: goal.motivation ?? "")
+        _desiredChange = State(initialValue: goal.desiredChange ?? "")
+        _currentChallenge = State(initialValue: goal.currentChallenge ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                contextField("Why does this matter to you?", text: $motivation)
+                contextField("What would you like to change?", text: $desiredChange)
+                contextField("What feels difficult right now?", text: $currentChallenge)
+            }
+            .scrollContentBackground(.hidden)
+            .screenBackground()
+            .navigationTitle("Goal context")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                }
+            }
+            .alert("Couldn't save context", isPresented: $isShowingSaveError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please try again.")
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func contextField(_ label: String, text: Binding<String>) -> some View {
+        Section(label) {
+            TextField("Add your answer", text: text, axis: .vertical)
+                .lineLimit(2...5)
+                .textInputAutocapitalization(.sentences)
+        }
+    }
+
+    private func save() {
+        goal.motivation = cleaned(motivation)
+        goal.desiredChange = cleaned(desiredChange)
+        goal.currentChallenge = cleaned(currentChallenge)
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            context.rollback()
+            isShowingSaveError = true
+        }
+    }
+
+    private func cleaned(_ value: String) -> String? {
+        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 }
