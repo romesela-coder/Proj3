@@ -264,7 +264,7 @@ struct GoalDetailSheet: View {
                 List {
                     goalHeader
                         .padding(.horizontal, Metrics.hMargin)
-                        .padding(.top, 25)
+                        .padding(.top, 44)
                         .padding(.bottom, 24)
                         .journalListRow()
 

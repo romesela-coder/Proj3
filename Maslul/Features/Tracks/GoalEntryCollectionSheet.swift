@@ -66,7 +66,7 @@ struct GoalEntryCollectionSheet: View {
                 List {
                     header
                         .padding(.horizontal, Metrics.hMargin)
-                        .padding(.top, 26)
+                        .padding(.top, 44)
                         .padding(.bottom, 22)
                         .journalListRow()
 
