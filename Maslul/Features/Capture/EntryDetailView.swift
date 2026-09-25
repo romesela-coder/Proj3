@@ -132,6 +132,7 @@ struct EntryDetailView: View {
                     mutate {
                         if entry.goal?.persistentModelID != goal.persistentModelID {
                             entry.checkpoint = nil
+                            entry.checkpointSortIndex = nil
                             entry.goalRoadmapSortIndex = nil
                         }
                         entry.goal = goal
@@ -142,6 +143,7 @@ struct EntryDetailView: View {
                 Button("No goal") {
                     mutate {
                         entry.checkpoint = nil
+                        entry.checkpointSortIndex = nil
                         entry.goal = nil
                         entry.goalRoadmapSortIndex = nil
                     }
@@ -151,10 +153,22 @@ struct EntryDetailView: View {
         }
         .confirmationDialog("Checkpoint", isPresented: $showCheckpointPicker, titleVisibility: .visible) {
             ForEach(goalCheckpoints) { checkpoint in
-                Button(checkpoint.title) { mutate { entry.checkpoint = checkpoint } }
+                Button(checkpoint.title) {
+                    mutate {
+                        if entry.checkpoint?.persistentModelID != checkpoint.persistentModelID {
+                            entry.checkpointSortIndex = nil
+                        }
+                        entry.checkpoint = checkpoint
+                    }
+                }
             }
             if entry.checkpoint != nil {
-                Button("No checkpoint") { mutate { entry.checkpoint = nil } }
+                Button("No checkpoint") {
+                    mutate {
+                        entry.checkpoint = nil
+                        entry.checkpointSortIndex = nil
+                    }
+                }
             }
             Button("Cancel", role: .cancel) {}
         }

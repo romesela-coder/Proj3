@@ -18,8 +18,13 @@ struct GoalEntryCollectionSheet: View {
 
     @State private var selectedEntry: Entry?
     @State private var isEditingCheckpoint = false
+    @State private var isEditingHeader = false
+    @State private var headerTitle = ""
+    @State private var headerDetails = ""
+    @FocusState private var focusedHeaderField: HeaderField?
     @State private var isConfirmingDelete = false
     @State private var isShowingDeleteError = false
+    @State private var timelineEditMode: EditMode = .inactive
     @State private var isWriting = false
     @State private var isChoosingDirection = false
     @State private var selectedPrompt: TrackQuestion?
@@ -30,42 +35,71 @@ struct GoalEntryCollectionSheet: View {
     @State private var reminderDelivery: EntryReminderDelivery = .notification
     @State private var selection = NSRange(location: 0, length: 0)
 
+    private enum HeaderField: Hashable {
+        case title
+        case details
+    }
+
     private var entries: [Entry] {
         allEntries.filter {
             $0.goal?.persistentModelID == goal.persistentModelID
                 && $0.checkpoint?.persistentModelID == checkpoint.persistentModelID
+        }
+        .sorted { left, right in
+            switch (left.checkpointSortIndex, right.checkpointSortIndex) {
+            case let (leftIndex?, rightIndex?) where leftIndex != rightIndex:
+                return leftIndex < rightIndex
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            default:
+                if left.createdAt != right.createdAt { return left.createdAt < right.createdAt }
+                return String(describing: left.persistentModelID) < String(describing: right.persistentModelID)
+            }
         }
     }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        header
+                List {
+                    header
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.top, 26)
+                        .padding(.bottom, 22)
+                        .journalListRow()
 
-                        VStack(alignment: .leading, spacing: 14) {
-                            SectionLabel(text: "TIMELINE")
+                    timelineHeader
+                        .padding(.horizontal, Metrics.hMargin)
+                        .padding(.bottom, 10)
+                        .journalListRow()
 
-                            if entries.isEmpty {
-                                emptyState
-                            } else {
-                                LazyVStack(alignment: .leading, spacing: 0) {
-                                    ForEach(entries) { entry in
-                                        timelineRow(
-                                            entry,
-                                            isLast: entry.persistentModelID == entries.last?.persistentModelID
-                                        )
-                                    }
-                                }
-                            }
+                    if entries.isEmpty {
+                        emptyState
+                            .padding(.horizontal, Metrics.hMargin)
+                            .journalListRow()
+                    } else {
+                        ForEach(entries) { entry in
+                            timelineRow(
+                                entry,
+                                isLast: entry.persistentModelID == entries.last?.persistentModelID
+                            )
+                            .padding(.horizontal, Metrics.hMargin)
+                            .padding(.trailing, timelineEditMode.isEditing ? -44 : 0)
+                            .journalListRow()
                         }
+                        .onMove(perform: moveEntries)
                     }
-                    .padding(.horizontal, Metrics.hMargin)
-                    .padding(.top, 26)
-                    .padding(.bottom, isWriting ? 250 : 110)
+
+                    Color.clear
+                        .frame(height: isWriting ? 250 : 110)
+                        .journalListRow()
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
+                .environment(\.editMode, $timelineEditMode)
 
                 if isWriting {
                     VStack(spacing: 9) {
@@ -97,7 +131,7 @@ struct GoalEntryCollectionSheet: View {
                         )
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if !isChoosingDirection {
+                } else if !isChoosingDirection && !timelineEditMode.isEditing {
                     Button(action: beginWriting) {
                         Image(systemName: "plus")
                             .font(.system(size: 23, weight: .medium))
@@ -166,27 +200,59 @@ struct GoalEntryCollectionSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text(checkpoint.title)
-                .font(.display(29))
-                .displayTracking(29)
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-
             Text(goal.title)
                 .font(.bodyText(13, weight: .medium))
                 .foregroundStyle(Palette.meta)
 
-            if let details = checkpoint.details, !details.isEmpty {
-                Text(details)
-                    .font(.bodyText(14))
-                    .foregroundStyle(Palette.ink2)
+            if isEditingHeader {
+                TextField("Checkpoint name", text: $headerTitle, axis: .vertical)
+                    .font(.display(29))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1...3)
+                    .focused($focusedHeaderField, equals: .title)
+            } else {
+                Button { beginHeaderEditing(.title) } label: {
+                    Text(checkpoint.title)
+                        .font(.display(29))
+                        .displayTracking(29)
+                        .foregroundStyle(Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit checkpoint name: \(checkpoint.title)")
             }
 
-            ChipFlow(spacing: 7, rowSpacing: 7) {
-                fact(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
-                if let dueAt = checkpoint.dueAt {
-                    fact("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated).year()))")
+            if isEditingHeader {
+                TextField("Description (optional)", text: $headerDetails, axis: .vertical)
+                    .font(.bodyText(14))
+                    .lineLimit(2...5)
+                    .focused($focusedHeaderField, equals: .details)
+
+                HStack(spacing: 18) {
+                    Button("Save", action: saveHeader)
+                        .font(.bodyText(13, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
+                        .disabled(headerTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel", action: cancelHeaderEditing)
+                        .font(.bodyText(13))
+                        .foregroundStyle(Palette.meta)
                 }
+            } else {
+                Button { beginHeaderEditing(.details) } label: {
+                    Text(checkpoint.details.flatMap { $0.isEmpty ? nil : $0 } ?? "Add description")
+                        .font(.bodyText(14))
+                        .foregroundStyle(checkpoint.details?.isEmpty == false ? Palette.ink2 : Palette.meta)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit checkpoint description")
+            }
+
+            if let dueAt = checkpoint.dueAt {
+                fact("Target \(dueAt.formatted(.dateTime.day().month(.abbreviated).year()))")
             }
 
             Button {
@@ -194,21 +260,45 @@ struct GoalEntryCollectionSheet: View {
                 try? context.save()
             } label: {
                 Group {
-                    if let completedAt = checkpoint.completedAt {
-                        Label(
-                            "Completed \(completedAt.formatted(.dateTime.day().month(.abbreviated)))",
-                            systemImage: "checkmark.circle.fill"
-                        )
+                    if checkpoint.completedAt != nil {
+                        Label("Completed · Reopen", systemImage: "checkmark.circle.fill")
                     } else {
-                        Label("Mark as complete", systemImage: "circle")
+                        Label("Mark as complete", systemImage: "checkmark.circle")
                     }
                 }
-                .font(.bodyText(13, weight: .semibold))
-                .foregroundStyle(Palette.ink)
+                .font(.bodyText(15, weight: .semibold))
+                .foregroundStyle(checkpoint.completedAt == nil ? Color.white : Palette.ink)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 48)
+                .background {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(checkpoint.completedAt == nil ? Palette.control : Palette.neutralTile)
+                }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(checkpoint.completedAt == nil ? "Mark checkpoint as complete" : "Reopen checkpoint")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var timelineHeader: some View {
+        HStack {
+            SectionLabel(text: "TIMELINE")
+            Spacer()
+            if timelineEditMode.isEditing {
+                Button("Done") {
+                    withAnimation(Motion.spring) { timelineEditMode = .inactive }
+                }
+                .font(.bodyText(12, weight: .semibold))
+                .foregroundStyle(Palette.ink2)
+            } else if entries.count > 1 {
+                Button("Reorder") {
+                    withAnimation(Motion.spring) { timelineEditMode = .active }
+                }
+                .font(.bodyText(12, weight: .semibold))
+                .foregroundStyle(Palette.ink2)
+            }
+        }
     }
 
     private func fact(_ title: String) -> some View {
@@ -221,7 +311,9 @@ struct GoalEntryCollectionSheet: View {
     }
 
     private func timelineRow(_ entry: Entry, isLast: Bool) -> some View {
-        Button { selectedEntry = entry } label: {
+        Button {
+            if !timelineEditMode.isEditing { selectedEntry = entry }
+        } label: {
             HStack(alignment: .top, spacing: 12) {
                 Circle()
                     .fill(Palette.ink2)
@@ -288,6 +380,39 @@ struct GoalEntryCollectionSheet: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.neutralTile))
     }
 
+    private func beginHeaderEditing(_ field: HeaderField) {
+        headerTitle = checkpoint.title
+        headerDetails = checkpoint.details ?? ""
+        isEditingHeader = true
+        focusedHeaderField = field
+    }
+
+    private func saveHeader() {
+        let cleanTitle = headerTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTitle.isEmpty else { return }
+        let cleanDetails = headerDetails.trimmingCharacters(in: .whitespacesAndNewlines)
+        checkpoint.title = cleanTitle
+        checkpoint.details = cleanDetails.isEmpty ? nil : cleanDetails
+        try? context.save()
+        focusedHeaderField = nil
+        isEditingHeader = false
+    }
+
+    private func cancelHeaderEditing() {
+        focusedHeaderField = nil
+        isEditingHeader = false
+    }
+
+    private func moveEntries(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = entries
+        guard fromOffsets.allSatisfy(reordered.indices.contains) else { return }
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for (index, entry) in reordered.enumerated() {
+            entry.checkpointSortIndex = index
+        }
+        try? context.save()
+    }
+
     private func beginWriting() {
         selectedPrompt = nil
         selectedBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
@@ -302,6 +427,7 @@ struct GoalEntryCollectionSheet: View {
     private func deleteCheckpoint() {
         for entry in entries {
             entry.checkpoint = nil
+            entry.checkpointSortIndex = nil
         }
         context.delete(checkpoint)
         do {

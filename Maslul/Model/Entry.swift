@@ -77,6 +77,10 @@ final class Entry {
     /// and the goal timeline even if their checkpoint is later removed.
     var checkpoint: GoalCheckpoint?
 
+    /// Manual order within a checkpoint. Nil keeps older entries in their
+    /// creation order and places newly linked entries after a reordered list.
+    var checkpointSortIndex: Int?
+
     /// Manual position on this Goal's mixed roadmap. Nil uses the initial
     /// created-at / checkpoint-target placement until the roadmap is reordered.
     var goalRoadmapSortIndex: Int?
@@ -107,6 +111,7 @@ final class Entry {
         self.reflectionPromptText = nil
         self.tags = []
         self.checkpoint = nil
+        self.checkpointSortIndex = nil
         self.goalRoadmapSortIndex = nil
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []

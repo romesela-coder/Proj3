@@ -145,6 +145,7 @@ struct GoalBoxImportSheet: View {
             }
             entry.goal = goal
             entry.checkpoint = checkpoint
+            entry.checkpointSortIndex = nil
         }
         try? context.save()
         dismiss()

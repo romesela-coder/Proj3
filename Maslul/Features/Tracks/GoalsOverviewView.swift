@@ -406,15 +406,9 @@ struct GoalDetailSheet: View {
                     .foregroundStyle(Palette.ink2)
             }
 
-            HStack(spacing: 6) {
-                Text(checkpoints.isEmpty
-                     ? "No checkpoints yet"
-                     : "\(checkpoints.filter { $0.completedAt != nil }.count)/\(checkpoints.count) checkpoints complete")
-                if !entries.isEmpty {
-                    Text("·")
-                    Text(entries.count == 1 ? "1 entry" : "\(entries.count) entries")
-                }
-            }
+            Text(checkpoints.isEmpty
+                 ? "No checkpoints yet"
+                 : "\(checkpoints.filter { $0.completedAt != nil }.count)/\(checkpoints.count) checkpoints complete")
             .font(.bodyText(12.5, weight: .medium))
             .foregroundStyle(Palette.meta)
         }
@@ -486,8 +480,6 @@ struct GoalDetailSheet: View {
     }
 
     private func checkpointShelf(_ checkpoint: GoalCheckpoint, isFirst: Bool, isLast: Bool) -> some View {
-        let entryCount = entries.filter { $0.checkpoint?.persistentModelID == checkpoint.persistentModelID }.count
-
         return HStack(alignment: .top, spacing: 9) {
             Button {
                 checkpoint.completedAt = checkpoint.completedAt == nil ? .now : nil
@@ -516,16 +508,6 @@ struct GoalDetailSheet: View {
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 5)
-                        if entryCount > 0 {
-                            HStack(spacing: 3) {
-                                Image(systemName: "square.and.pencil")
-                                Text("\(entryCount)")
-                            }
-                            .font(.utility(10))
-                            .foregroundStyle(Palette.meta)
-                            .padding(.top, 5)
-                            .accessibilityLabel("\(entryCount) entries")
-                        }
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.meta)
@@ -543,9 +525,7 @@ struct GoalDetailSheet: View {
             }
             .buttonStyle(.plain)
             .disabled(roadmapEditMode.isEditing)
-            .accessibilityLabel(entryCount == 0
-                ? "Open \(checkpoint.title)"
-                : "Open \(checkpoint.title), \(entryCount) entries")
+            .accessibilityLabel("Open \(checkpoint.title)")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 44, alignment: .top)
