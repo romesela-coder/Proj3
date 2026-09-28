@@ -2,7 +2,8 @@
 
 Maslul is a private, single-user career and memory journal for iPhone. It is a
 local-first SwiftUI/SwiftData app with fast capture, reusable tags, inline
-mentions, dictation, weekly reflection, reports, goals, and export.
+mentions, dictation, Goal/Checkpoint roadmaps, weekly reflection, reports, and
+export.
 
 Read `README.md` for the product and build overview, and `HANDOFF.md` for the
 current implementation state and regression checklist. Follow the repository's
@@ -12,12 +13,16 @@ applicable `AGENTS.md` instructions for GitHub account separation and workflow.
 
 Do not relax these without asking the user:
 
-1. No account, server, analytics, CloudKit model container, third-party SDK, or
-   application networking code.
+1. The current app has no account, server, analytics, CloudKit model container,
+   third-party SDK, or application networking code. An external-model API is a
+   planned direction, but do not add networking until provider, backend/key
+   custody, consent, retention, cost, privacy copy, and failure behavior are
+   explicitly decided.
 2. Journal data and attachments stay in the app container. Export is an
    explicit user action through the system share sheet.
-3. AI must be on device and optional. Every AI-assisted path needs a useful
-   deterministic or heuristic fallback.
+3. Existing AI paths are on-device and optional. Every model-assisted path,
+   including a future external one, needs a useful deterministic or heuristic
+   fallback and must not block capture, save, or navigation.
 4. Entries use recoverable deletion: Trash for 48 hours, then purge. Directly
    deleting a tag or group must never delete an entry.
 5. No streaks, guilt states, or daily nagging. The product has one weekly
@@ -50,9 +55,16 @@ xcodebuild \
 
 `Entry` is the central record. Its only required user input is body text. It
 also stores an editable title, timestamps, optional legacy type/project/effort,
-privacy, attachments, an optional goal, Trash state, and a many-to-many tag
-relationship. Every entry also belongs to one `EntryBox`; Inbox is assigned to
-new and migrated entries by default.
+privacy, attachments, an optional Goal and Checkpoint, Trash state, and a
+many-to-many tag relationship. Every entry also belongs to one `EntryBox`;
+Inbox is assigned to new and migrated entries by default. Goal-roadmap and
+Checkpoint-specific sort indices are independent from Entry creation time.
+
+`Goal` is the active intention/roadmap entity for the new Goals flow.
+`GoalCheckpoint` is a user-ordered planned step with optional details, target
+date, and explicit completion. A Checkpoint can have zero or many Entries.
+Deleting a Checkpoint nullifies its Entry links; it must never delete Entries.
+Read `GOALS_PLAN.md` before changing this model or its interaction semantics.
 
 `EntryBox` is the durable filing axis used by the Boxes board. Its icon belongs
 to the Box, not to each entry. Calendar and Journal show that Box icon as the
@@ -148,6 +160,14 @@ deterministic rankings based on text match, usage count, and recency.
   current clock time. Do not construct new quick entries from a start-of-day
   value directly.
 - Entry detail is a draggable partial sheet that can expand to full height.
+- Goal and Checkpoint detail sheets begin with the entity title and deliberately
+  omit a generic navigation title/Done bar. They share `EditableDetailHeader`:
+  tapping the title enters inline editing with Save/Cancel.
+- Goal context previews directly below its title and expands into unlabeled
+  short paragraphs without moving the title. Checkpoint completion drives the
+  Goal progress bar.
+- The global floating `+` always creates an Entry. Goal and Checkpoint creation
+  use their own explicit controls; the roadmap header has one icon-only `+`.
 - Use the shared tokens in `Design/Theme.swift`; do not hardcode colors or
   motion curves.
 - Tags without a chosen color use one consistent default mention tint. Custom
@@ -184,8 +204,9 @@ Maslul/
   Model/       entry, tags, projects, goals, allocations
   Data/        settings, attachments, sample data, allocation math
   Services/    dictation, local intelligence, export, reminders
-  Features/    Home (Calendar, Boxes board, quick capture), Capture, Tags,
-               Journal, Ritual, Reports, Goals, Projects, Me, Onboarding
+  Features/    Home (Calendar, Boxes board, quick capture), Capture, Tracks
+               (Goals, Checkpoints, directions), Tags, Journal, Ritual,
+               Reports, legacy Goals/Projects, Me, Onboarding
 ```
 
 ## Git
