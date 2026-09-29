@@ -56,7 +56,7 @@ struct EntryReminderPicker: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionLabel(text: "DELIVERY")
+                        SectionLabel(text: "Delivery")
                         HStack(spacing: 8) {
                             ForEach(EntryReminderDelivery.allCases) { option in
                                 Button { selectedDelivery = option } label: {
@@ -139,7 +139,7 @@ struct EntryReminderPicker: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionLabel(text: "CUSTOM")
+                        SectionLabel(text: "Custom")
                         DatePicker(
                             "Date and time",
                             selection: $selectedAt,
@@ -175,8 +175,6 @@ struct EntryReminderPicker: View {
         }
         .presentationDetents([.large])
         .presentationBackground(Palette.ground)
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .alert(selectedDelivery == .alarm ? "Alarms are off" : "Notifications are off", isPresented: $authorizationDenied) {
             Button("Not now", role: .cancel) {}
             Button("Open Settings") { openRelevantSettings() }
@@ -301,7 +299,6 @@ struct EntryReminderMark: View {
                 Capsule().fill(isArchived ? Palette.neutralTile : Palette.accent)
             )
             .accessibilityLabel("Reminder \(Fmt.reminderStamp(reminderAt))")
-            .environment(\.layoutDirection, .leftToRight)
         }
     }
 }

@@ -109,7 +109,6 @@ struct TagMentionSuggestions: View {
                     }
                 }
             }
-            .environment(\.layoutDirection, .leftToRight)
             .confirmationDialog(
                 "Create “\(proposedName)”",
                 isPresented: $isChoosingGroup,

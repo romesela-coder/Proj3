@@ -93,10 +93,9 @@
 			};
 			buildConfigurationList = AA000000000000000000000A /* Build configuration list for PBXProject "Maslul" */;
 			compatibilityVersion = "Xcode 15.0";
-			developmentRegion = he;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				he,
 				en,
 				Base,
 			);

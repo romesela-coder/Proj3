@@ -92,6 +92,13 @@ starts dictation.
 - Time-allocation reports and goals-versus-reality views.
 - Markdown and JSON export, with sensitive entries excluded by default.
 - Weekly local reminders and sample data for testing.
+- An active Goals surface with name-first creation, optional editable context,
+  Checkpoint roadmaps, persisted mixed-item ordering, explicit completion, and
+  a progress bar.
+- A focused timeline inside each Checkpoint. Entries retain their Journal and
+  Box identity while also being linked to a Goal/Checkpoint.
+- Curated reflection directions that can be inserted into the regular Entry
+  composer as context.
 
 ### Deletion
 
@@ -133,7 +140,7 @@ Intelligence is otherwise available.
 The SwiftData container currently includes:
 
 - `Entry`, `EntryBox`, `TagGroup`, `EntryTag`
-- `Project`, `Goal`
+- `Project`, `Goal`, `GoalCheckpoint`
 - `WeeklyAllocation`, `AllocationSlice`
 
 `TagGroup`/`EntryTag` are the new general classification model. The older
@@ -141,6 +148,11 @@ The SwiftData container currently includes:
 staged migration because reports, tidy suggestions, goals, and historical data
 still use them. `TagBootstrap` mirrors valid legacy projects and entry types
 into system tag groups without creating duplicate tags.
+
+The current Goals experiment is documented in `GOALS_PLAN.md`. `Entry` has
+optional Goal and Checkpoint links plus independent persisted order fields for
+the mixed Goal roadmap and for a Checkpoint's own Entry timeline. Removing a
+Checkpoint nullifies the link and preserves the Entry.
 
 Before clearing a development install after a schema problem, export any data
 you want to keep. There is no automatic backup.
@@ -158,6 +170,7 @@ Maslul/
   Features/
     Home/                  Calendar, Boxes board, and quick capture
     Capture/               Full capture and entry detail
+    Tracks/                Goals, Checkpoints, roadmaps, direction prompts
     Tags/                  Tag groups, tags, colors, deletion
     Journal/               Search and filters
     Ritual/                Weekly tidy and allocation
@@ -178,6 +191,9 @@ Maslul/
   Box lifecycle management such as renaming or deleting a Box is not implemented.
 - Semantic search, monthly summaries, résumé-line drafting, widgets/App
   Intents, Face ID lock, and encrypted backup are not implemented.
+- External-model prompt ranking is a planned direction, not an implemented
+  networking layer. Provider, backend/key custody, consent, retention, cost,
+  privacy copy, and fallback behavior still need a product decision.
 - The app shell and new capture/tag surfaces are LTR English. Some older
   settings, reports, ritual, and onboarding copy is still Hebrew and should be
   migrated separately.

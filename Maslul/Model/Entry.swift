@@ -59,12 +59,31 @@ final class Entry {
     /// Independent manual position inside a Calendar day.
     var calendarSortIndex: Int = 0
 
+    /// Optional prompt context for a user-initiated Track answer. The body is
+    /// still a normal journal entry; retaining the prompt lets the timeline
+    /// explain what the user was responding to and gives future local ranking
+    /// a private history of which questions have already been used.
+    var reflectionPromptID: String?
+    var reflectionPromptText: String?
+
     @Relationship(deleteRule: .nullify, inverse: \EntryTag.entries)
     var tags: [EntryTag] = []
 
     /// Link to an active quarterly goal (§06, `goalRef`). Optional — most
     /// entries never belong to a declared goal, and that is itself the finding.
     var goal: Goal?
+
+    /// Optional context within a goal. Entries remain in the daily journal
+    /// and the goal timeline even if their checkpoint is later removed.
+    var checkpoint: GoalCheckpoint?
+
+    /// Manual order within a checkpoint. Nil keeps older entries in their
+    /// creation order and places newly linked entries after a reordered list.
+    var checkpointSortIndex: Int?
+
+    /// Manual position on this Goal's mixed roadmap. Nil uses the initial
+    /// created-at / checkpoint-target placement until the roadmap is reordered.
+    var goalRoadmapSortIndex: Int?
 
     init(
         body: String = "",
@@ -88,7 +107,12 @@ final class Entry {
         self.box = nil
         self.boxSortIndex = 0
         self.calendarSortIndex = 0
+        self.reflectionPromptID = nil
+        self.reflectionPromptText = nil
         self.tags = []
+        self.checkpoint = nil
+        self.checkpointSortIndex = nil
+        self.goalRoadmapSortIndex = nil
         self.sensitivityRaw = Sensitivity.normal.rawValue
         self.attachmentNames = []
     }

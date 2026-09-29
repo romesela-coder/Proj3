@@ -60,7 +60,6 @@ struct EntryIconTile: View {
             }
         }
         .frame(width: size, height: size)
-        .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(customSymbol == nil ? artifact.accessibilityLabel : "Custom entry icon")
         .accessibilityValue(needsAttention ? "Needs attention" : "")
@@ -144,10 +143,9 @@ struct EntryIconPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("ENTRY ICON")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Entry icon")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Button("Done") { dismiss() }
                     .font(.bodyText(14, weight: .semibold))
@@ -178,8 +176,6 @@ struct EntryIconPicker: View {
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.locale, Locale(identifier: "en_US"))
         .presentationDetents([.height(410)])
         .presentationDragIndicator(.visible)
     }

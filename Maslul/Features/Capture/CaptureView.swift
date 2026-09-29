@@ -60,7 +60,7 @@ struct CaptureView: View {
     }
 
     private var activeGoals: [Goal] {
-        goals.filter(\.isCurrent)
+        goals.filter { $0.isCurrent || ($0.isTrack && $0.isOpen) }
     }
 
     private var canSave: Bool {
@@ -224,10 +224,9 @@ struct CaptureView: View {
         HStack {
             Chip(title: "Cancel") { dismiss() }
             Spacer()
-            Text("NEW ENTRY")
-                .font(.utility(10.5))
-                .tracking(1.4)
-                .foregroundStyle(Palette.meta)
+            Text("New entry")
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
             Spacer()
             Chip(title: "Save", isOn: canSave) {
                 guard canSave else { return }
@@ -368,7 +367,7 @@ struct CaptureView: View {
     }
 
     private var goalSection: some View {
-        classificationSection("Quarterly goal") {
+        classificationSection("Goal") {
             VStack(alignment: .leading, spacing: 8) {
                 chipGrid {
                     Chip(title: "No goal", isOn: goal == nil) { goal = nil; suggestedFields.remove(.goal) }
@@ -381,9 +380,7 @@ struct CaptureView: View {
                             goal = candidate; suggestedFields.remove(.goal)
                         }
                     }
-                    if activeGoals.count < Goal.activeLimit {
-                        Chip(title: "+ Goal", isOn: addingGoal) { addingGoal.toggle() }
-                    }
+                    Chip(title: "+ Goal", isOn: addingGoal) { addingGoal.toggle() }
                 }
                 if addingGoal { inlineCreator("Goal name", text: $newGoalTitle, action: addGoal) }
             }
@@ -581,11 +578,11 @@ struct CaptureView: View {
 
     private func addGoal() {
         let title = newGoalTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, activeGoals.count < Goal.activeLimit else { return }
+        guard !title.isEmpty else { return }
         if let existing = activeGoals.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) {
             goal = existing
         } else {
-            let created = Goal(title: title)
+            let created = Goal.track(title: title)
             context.insert(created)
             goal = created
             suggestEmoji(for: created)
@@ -690,10 +687,9 @@ struct DatePickerSheet: View {
             HStack {
                 Chip(title: "Done", isOn: true) { dismiss() }
                 Spacer()
-                Text("ENTRY DATE")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Entry date")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Chip(title: "Now") { date = .now }
             }

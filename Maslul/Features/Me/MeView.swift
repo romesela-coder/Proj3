@@ -14,7 +14,6 @@ struct MeView: View {
     @Query(filter: #Predicate<Entry> { $0.trashedAt == nil }, sort: \Entry.createdAt, order: .reverse) private var entries: [Entry]
     @Query(filter: #Predicate<Entry> { $0.trashedAt != nil }) private var trashedEntries: [Entry]
     @Query private var projects: [Project]
-    @Query private var goals: [Goal]
     @Query(sort: \WeeklyAllocation.weekStart, order: .reverse)
     private var allocations: [WeeklyAllocation]
 
@@ -33,7 +32,7 @@ struct MeView: View {
 
                 stats
 
-                SectionLabel(text: "WEEKLY").padding(.top, 20).padding(.bottom, 2)
+                SectionLabel(text: "Weekly").padding(.top, 20).padding(.bottom, 2)
 
                 Button { router.startAllocation() } label: {
                     SettingRow(
@@ -60,15 +59,6 @@ struct MeView: View {
                         symbol: "chart.bar",
                         title: "דוח הקצאת זמן",
                         subtitle: reportSubtitle
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button { router.mePath.append(.goals) } label: {
-                    SettingRow(
-                        symbol: "target",
-                        title: "מטרות מול מציאות",
-                        subtitle: goalsSubtitle
                     )
                 }
                 .buttonStyle(.plain)
@@ -227,9 +217,8 @@ struct MeView: View {
                 .font(.display(24))
                 .foregroundStyle(Palette.ink)
             Text(label)
-                .font(.utility(10.5))
-                .tracking(1.2)
-                .foregroundStyle(Palette.meta)
+                .font(.bodyText(12.5, weight: .medium))
+                .foregroundStyle(Palette.ink2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -262,11 +251,6 @@ struct MeView: View {
 
     private var reportSubtitle: String {
         allocations.isEmpty ? "אין עדיין נתונים" : "\(allocations.count) שבועות מדווחים"
-    }
-
-    private var goalsSubtitle: String {
-        let open = goals.filter(\.isCurrent).count
-        return open == 0 ? "לא הוגדרו מטרות לרבעון" : "\(open) פעילות · \(Quarter.current().shortTitle)"
     }
 
     private var timeText: String {

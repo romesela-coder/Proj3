@@ -51,7 +51,6 @@ struct RichTextToolbar: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 42)
-        .environment(\.layoutDirection, .leftToRight)
     }
 
     private var fontSizeMenu: some View {

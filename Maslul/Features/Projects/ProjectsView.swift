@@ -25,7 +25,7 @@ struct ProjectsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    SectionLabel(text: "ACTIVE · \(active.count) of \(Project.activeLimit)")
+                    SectionLabel(text: "Active · \(active.count) of \(Project.activeLimit)")
                         .padding(.bottom, 4)
 
                     if active.isEmpty {
@@ -40,14 +40,14 @@ struct ProjectsView: View {
                     }
 
                     if !paused.isEmpty {
-                        SectionLabel(text: "PAUSED").padding(.top, 20)
+                        SectionLabel(text: "Paused").padding(.top, 20)
                         ForEach(paused) { project in
                             row(project).opacity(0.6)
                         }
                     }
 
                     if !closed.isEmpty {
-                        SectionLabel(text: "DONE").padding(.top, 20)
+                        SectionLabel(text: "Done").padding(.top, 20)
                         ForEach(closed) { project in
                             row(project).opacity(0.45)
                         }
@@ -177,17 +177,16 @@ struct ProjectEditView: View {
             HStack {
                 Chip(title: "Cancel") { cancel() }
                 Spacer()
-                Text("PROJECT")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                Text("Project")
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Chip(title: "Save", isOn: !trimmedName.isEmpty) { save() }
                     .opacity(trimmedName.isEmpty ? 0.45 : 1)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "NAME & EMOJI")
+                SectionLabel(text: "Name & emoji")
                 HStack(spacing: 10) {
                     TextField("📁", text: $project.emoji)
                         .font(.system(size: 24))
@@ -221,7 +220,7 @@ struct ProjectEditView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "DEFAULT ORIGIN")
+                SectionLabel(text: "Default origin")
                 Text("ברירת מחדל שרשומות בפרויקט יורשות. ניתן לדריסה ברשומה בודדת.")
                     .font(.bodyText(12.5))
                     .foregroundStyle(Palette.meta)
@@ -238,7 +237,7 @@ struct ProjectEditView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "STATUS")
+                SectionLabel(text: "Status")
                 HStack(spacing: 8) {
                     ForEach(ProjectStatus.allCases) { candidate in
                         Chip(title: candidate.title, isOn: project.status == candidate) {
@@ -253,7 +252,6 @@ struct ProjectEditView: View {
         .padding(.horizontal, Metrics.hMargin)
         .padding(.top, 20)
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
         .presentationDetents([.medium, .large])
     }
 

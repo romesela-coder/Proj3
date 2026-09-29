@@ -1,13 +1,14 @@
 # Maslul handoff
 
-Updated September 14, 2026.
+Updated September 28, 2026.
 
 ## Current baseline
 
 The project is an actively tested iPhone app, not an uncompiled prototype. The
 generalized tags, rich inline mentions, native rich-text editor, global search,
-Boxes board, compact entry sheet, Trash, and dictation work have all been built
-and exercised on a physical iPhone with Xcode 26.4 / iOS 26.
+Boxes board, compact entry sheet, Trash, dictation, entry reminders, and the
+first Goal/Checkpoint roadmap iteration have all been built and exercised on a
+physical iPhone with Xcode 26.4 / iOS 26.
 
 The current product loop is:
 
@@ -16,11 +17,60 @@ The current product loop is:
    from locally ranked suggestions.
 3. File it into one Box (Inbox by default); the Box icon identifies the entry
    in Today and Journal.
-4. Edit the entry in a compact sheet and optionally change its box, date,
-   privacy, title, tags, or attachments.
-5. Retrieve entries by day in Calendar, by filing context in Boxes, or through
-   global search. The older ritual, allocation, goals, and reports surfaces are
-   legacy product areas and should not be treated as the direction for new work.
+4. Optionally link the Entry to a Goal and a Checkpoint within that Goal.
+5. Edit the entry in a compact sheet and optionally change its Box, Goal,
+   Checkpoint, date, privacy, title, tags, reminder, or attachments.
+6. Retrieve entries by day in Calendar, by filing context in Boxes, through
+   global search, or in the roadmap/timeline of a Goal.
+
+Goals are now an active product direction, not a legacy surface. The working
+navigation model is Goals plus the on-the-go Journal/Calendar. Boxes remain
+available as a useful filing/workflow view, but are not automatically Goals or
+Checkpoints. `GOALS_PLAN.md` is the detailed product record for this experiment.
+
+## Current Goal model
+
+- A **Goal** is a user-created intention and the home for its context, roadmap,
+  and reflection. Its name is the only required creation field.
+- A **Checkpoint** is a planned step or milestone inside one Goal. It may stand
+  alone as a task or contain its own ordered Entry timeline. Checkpoints have
+  optional descriptions and target dates; their roadmap order is independent
+  of those dates.
+- An **Entry** remains the single journal record. It may have no Goal, one Goal,
+  or one Goal plus one Checkpoint. Linking it never removes it from Journal or
+  its Box.
+- The Goal roadmap interleaves Checkpoints and occasional Goal Entries. The
+  user can reorder both. Entries inside a Checkpoint have a separate persisted
+  manual order.
+- Completing a Checkpoint is explicit and drives the Goal progress bar.
+- Goal context is stored as three optional prompts but displayed as an
+  unlabeled sequence of short paragraphs. The first paragraph previews below
+  the Goal title; expansion pushes only the content below it down.
+- Goal and Checkpoint detail pages share `EditableDetailHeader`: tapping the
+  entity title enters inline editing with the same Save/Cancel convention.
+- Goal/Checkpoint sheets intentionally have no generic navigation title or
+  Done button. The Checkpoint Manage menu lives beside its title.
+- The global floating `+` always creates an Entry. Goal creation has its own
+  explicit action; the Goal roadmap header uses a single icon-only `+` to add a
+  Checkpoint.
+- Reflection questions are hard-coded, curated prompts. “Need a direction?” is
+  available in normal, Goal, and Checkpoint capture; choosing a prompt inserts
+  it into the Entry composer as context.
+
+### Next product decisions
+
+1. Decide the final names and navigation prominence of Goals, Journal/Calendar,
+   and the legacy Boxes view.
+2. Decide whether Goal creation should support batch planning of several
+   Checkpoints or stay name-first and defer roadmap building.
+3. Decide whether completing a Checkpoint should create a dated journal event.
+4. Continue visual refinement of Goal/Checkpoint density and test the current
+   context disclosure/editing interaction with real goals.
+5. Define the first external-model contract before adding networking: provider,
+   backend and key custody, explicit user consent, retained data, cost limits,
+   failure behavior, and privacy copy. The first narrow model job should rank
+   4–6 prompt IDs from the curated bank using bounded Goal context and approved
+   recent Entries. No external-model networking exists yet.
 
 ## Build and device check
 
@@ -45,13 +95,14 @@ xcodebuild \
   -project Maslul.xcodeproj \
   -scheme Maslul \
   -configuration Debug \
-  -destination 'id=00008150-001125800205401C' \
+  -destination 'platform=iOS,id=2911A2B1-6D4F-5301-B2C9-AB36DA5AAEC6' \
+  -derivedDataPath /private/tmp/maslul-device-build \
   -allowProvisioningUpdates \
   build -quiet
 
 xcrun devicectl device install app \
   --device 2911A2B1-6D4F-5301-B2C9-AB36DA5AAEC6 \
-  /Users/rom/Library/Developer/Xcode/DerivedData/Maslul-cadwpieqdxlvwvbaoxvdzdlgpgih/Build/Products/Debug-iphoneos/Maslul.app
+  /private/tmp/maslul-device-build/Build/Products/Debug-iphoneos/Maslul.app
 
 xcrun devicectl device process launch \
   --device 2911A2B1-6D4F-5301-B2C9-AB36DA5AAEC6 \
@@ -88,6 +139,18 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
   deterministic fallbacks.
 - `Features/Tags/TagsView.swift` owns tag-group navigation, editing, colors,
   uniqueness guardrails, and deletion.
+- `Features/Tracks/GoalsOverviewView.swift` owns the Goals home, mixed Goal
+  roadmap, Goal progress/context, roadmap ordering, and focused Goal capture.
+- `Features/Tracks/GoalEntryCollectionSheet.swift` owns one Checkpoint's Entry
+  timeline, Entry ordering, completion, deletion, and contextual capture.
+- `Features/Tracks/GoalQuestions.swift` owns the curated question bank and
+  name-first Goal creation flow.
+- `Features/Tracks/GoalDirectionsView.swift` owns the compact prompt browser
+  used above the Entry composer.
+- `Model/GoalCheckpoint.swift` and the Goal/Checkpoint fields on `Entry` own the
+  current roadmap relationships and persisted manual positions.
+- `Design/Components.swift` owns `EditableDetailHeader`, the shared inline-edit
+  convention for Goal-like entity detail pages.
 
 ## Important invariants
 
@@ -107,7 +170,9 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
   regress new entries to `12:00 AM`; old midnight entries cannot be repaired
   because their original time was never stored.
 - The app has no account, CloudKit container, analytics, third-party SDK, or
-  application networking layer.
+  application networking layer. An external model is planned but must not be
+  connected until its privacy, consent, backend/key-custody, and failure model
+  are explicitly defined.
 - Foundation Models and Speech failures must leave a usable deterministic or
   system fallback.
 
@@ -148,6 +213,19 @@ is connected and unlocked, then retry. CoreDevice may print a harmless
     edge over the cards.
 17. Open a focused Box, tap `+`, and verify the compact composer follows the
     keyboard with that Box selected rather than opening the legacy capture sheet.
+18. Create a Goal with only a name, then add/edit its optional context by
+    tapping the Goal title. Verify context renders as unlabeled paragraphs and
+    expanding it does not move the Goal title upward.
+19. Add, edit, reorder, complete/reopen, and delete a Checkpoint. Deleting it
+    must leave linked Entries in the Goal and Journal.
+20. Add Entries inside a Checkpoint, reorder them, reopen the Checkpoint, and
+    verify the order persists without changing Entry dates.
+21. Add a standalone Entry to a Goal roadmap, reorder it relative to
+    Checkpoints, and verify both the manual order and original dates persist.
+22. Verify Goal progress changes only from completed Checkpoints. Confirm Goal
+    cards and roadmap rows do not show Entry-count clutter.
+23. Tap Goal and Checkpoint titles and verify both use the shared inline editor,
+    preserve long wrapping titles, and save/cancel without a generic top bar.
 
 ## Product roadmap
 

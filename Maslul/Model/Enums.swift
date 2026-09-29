@@ -30,8 +30,6 @@ enum EntryType: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    var latin: String { rawValue.uppercased() }
-
     var tint: Color {
         switch self {
         case .win: return Palette.win

@@ -246,9 +246,8 @@ struct GoalEditView: View {
                 Chip(title: "ביטול") { dismiss() }
                 Spacer()
                 Text("מטרה חדשה")
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
+                    .font(.bodyText(12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink2)
                 Spacer()
                 Chip(title: "שמור", isOn: !trimmedTitle.isEmpty) { save() }
                     .opacity(trimmedTitle.isEmpty ? 0.45 : 1)

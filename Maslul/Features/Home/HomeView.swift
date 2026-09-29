@@ -6,8 +6,25 @@ import UIKit
 /// while the home screen answers what needs attention next.
 struct HomeView: View {
     private enum ViewMode {
+        case tracks
         case calendar
         case boxes
+
+        var symbol: String {
+            switch self {
+            case .tracks: return "target"
+            case .calendar: return "calendar"
+            case .boxes: return "square.grid.2x2"
+            }
+        }
+
+        var accessibilityTitle: String {
+            switch self {
+            case .tracks: return "Tracks view"
+            case .calendar: return "Calendar view"
+            case .boxes: return "Boxes view"
+            }
+        }
     }
 
     @Environment(Router.self) private var router
@@ -23,6 +40,9 @@ struct HomeView: View {
     @Query(sort: \EntryBox.sortIndex, order: .forward)
     private var boxes: [EntryBox]
 
+    @Query(sort: \Goal.createdAt, order: .forward)
+    private var goals: [Goal]
+
     @State private var selectedDate = Calendar.current.startOfDay(for: .now)
     @State private var isQuickCapturePresented = false
     @State private var quickText = ""
@@ -30,8 +50,13 @@ struct HomeView: View {
     @State private var quickBox: EntryBox?
     @State private var quickReminderAt: Date?
     @State private var quickReminderDelivery: EntryReminderDelivery = .notification
+    @State private var quickTrack: Goal?
+    @State private var quickQuestion: TrackQuestion?
+    @State private var isChoosingDirection = false
     @State private var quickSelection = NSRange(location: 0, length: 0)
-    @State private var viewMode: ViewMode = .calendar
+    @State private var viewMode: ViewMode = .tracks
+    @State private var selectedTimelineTrack: Goal?
+    @State private var isCreatingTrack = false
     @State private var weekAnchorDate = Calendar.current.startOfDay(for: .now)
     @State private var calendarEntryRowFrames: [CGRect] = []
     @State private var calendarEditMode: EditMode = .inactive
@@ -54,13 +79,29 @@ struct HomeView: View {
     }
 
     private var canWriteOnSelectedDay: Bool {
-        selectedDate <= calendar.startOfDay(for: .now)
+        viewMode != .calendar || selectedDate <= calendar.startOfDay(for: .now)
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
-                if viewMode == .calendar {
+                if viewMode == .tracks {
+                    VStack(alignment: .leading, spacing: 0) {
+                        modeHeading(
+                            title: "Goals",
+                            subtitle: "The things you want to keep moving."
+                        )
+                        .padding(.horizontal, Metrics.hMargin)
+
+                        GoalsOverviewView(
+                            goals: activeTracks,
+                            entries: entries,
+                            openGoal: { selectedTimelineTrack = $0 },
+                            createGoal: { isCreatingTrack = true }
+                        )
+                    }
+                    .padding(.top, 30)
+                } else if viewMode == .calendar {
                     VStack(alignment: .leading, spacing: 0) {
                         modeHeading(
                             title: calendar.isDateInToday(selectedDate)
@@ -100,18 +141,27 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             if isQuickCapturePresented {
-                QuickCaptureBar(
-                    text: $quickText,
-                    selectedTags: $quickTags,
-                    selectedBox: $quickBox,
-                    reminderAt: $quickReminderAt,
-                    reminderDelivery: $quickReminderDelivery,
-                    selection: $quickSelection,
-                    availableTags: availableTags,
-                    suggestedTags: suggestedTags,
-                    save: saveQuickEntry,
-                    dismiss: dismissQuickCaptureInteractively
-                )
+                VStack(spacing: 9) {
+                    if quickQuestion == nil {
+                        EntryDirectionAccessory(open: openDirections)
+                    }
+                    QuickCaptureBar(
+                        text: $quickText,
+                        selectedTags: $quickTags,
+                        selectedBox: $quickBox,
+                        reminderAt: $quickReminderAt,
+                        reminderDelivery: $quickReminderDelivery,
+                        selection: $quickSelection,
+                        selectedGoal: $quickTrack,
+                        availableGoals: activeTracks,
+                        goalIsFixed: false,
+                        availableTags: availableTags,
+                        prompt: quickQuestion?.text,
+                        save: saveQuickEntry,
+                        dismiss: dismissQuickCaptureInteractively,
+                        clearPrompt: { quickQuestion = nil }
+                    )
+                }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -120,28 +170,46 @@ struct HomeView: View {
         .screenBackground()
         .withDock(
             showsCompose: canWriteOnSelectedDay,
-            isVisible: !isQuickCapturePresented,
+            isVisible: !isQuickCapturePresented && !isChoosingDirection,
             composeAction: presentQuickCapture
         )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $selectedTimelineTrack) { track in
+            GoalDetailSheet(goal: track)
+        }
+        .sheet(isPresented: $isCreatingTrack) {
+            GoalCreationSheet(existingTracks: activeTracks) { goal in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                    selectedTimelineTrack = goal
+                }
+            }
+        }
+        .sheet(isPresented: $isChoosingDirection, onDismiss: {
+            withAnimation(Motion.spring) { isQuickCapturePresented = true }
+        }) {
+            GoalDirectionsView { direction in
+                quickQuestion = direction
+                isChoosingDirection = false
+            }
+        }
     }
 
     // MARK: - Pieces
 
-    private func viewModeButton(_ mode: ViewMode, symbol: String) -> some View {
+    private func viewModeButton(_ mode: ViewMode) -> some View {
         let isSelected = viewMode == mode
         return Button {
             withAnimation(Motion.spring) { viewMode = mode }
         } label: {
-            Image(systemName: symbol)
+            Image(systemName: mode.symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(isSelected ? Color.white : Palette.muted)
                 .frame(width: 46, height: 40)
                 .background(Capsule().fill(isSelected ? Palette.control : Color.clear))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(mode == .calendar ? "Calendar view" : "Boxes view")
+        .accessibilityLabel(mode.accessibilityTitle)
     }
 
     private func modeHeading(title: String, subtitle: String) -> some View {
@@ -164,8 +232,9 @@ struct HomeView: View {
                 .accessibilityLabel("Global search")
 
                 HStack(spacing: 2) {
-                    viewModeButton(.calendar, symbol: "calendar")
-                    viewModeButton(.boxes, symbol: "square.grid.2x2")
+                    viewModeButton(.tracks)
+                    viewModeButton(.calendar)
+                    viewModeButton(.boxes)
                 }
                 .padding(4)
                 .background(Capsule().fill(Palette.neutralTile))
@@ -411,10 +480,17 @@ struct HomeView: View {
     }
 
     private func presentQuickCapture() {
+        quickTrack = nil
+        quickQuestion = nil
         quickBox = boxes.first(where: { $0.systemKey == "inbox" }) ?? boxes.first
         quickReminderAt = nil
         quickReminderDelivery = .notification
         withAnimation(Motion.spring) { isQuickCapturePresented = true }
+    }
+
+    private func openDirections() {
+        isQuickCapturePresented = false
+        isChoosingDirection = true
     }
 
     private func dismissQuickCapture() {
@@ -442,6 +518,9 @@ struct HomeView: View {
         let entry = Entry(body: body, createdAt: timestampForSubmission())
         CalendarEntryOrdering.placeAtFront(entry, in: context)
         entry.tags = quickTags
+        entry.goal = quickTrack
+        entry.reflectionPromptID = quickQuestion?.id
+        entry.reflectionPromptText = quickQuestion?.text
         entry.reminderAt = quickReminderAt
         entry.reminderDelivery = quickReminderDelivery
         EntryBoxEntryOrdering.move(
@@ -475,10 +554,16 @@ struct HomeView: View {
         quickText = ""
         quickTags = []
         quickBox = nil
+        quickTrack = nil
+        quickQuestion = nil
         quickReminderAt = nil
         quickReminderDelivery = .notification
         quickSelection = NSRange(location: 0, length: 0)
         dismissQuickCapture()
+    }
+
+    private var activeTracks: [Goal] {
+        goals.filter { $0.isTrack && $0.closedAt == nil }
     }
 
     private func timestampForSubmission(at submittedAt: Date = .now) -> Date {
@@ -490,35 +575,6 @@ struct HomeView: View {
         return submittedAt
     }
 
-    private var suggestedTags: [EntryTag] {
-        let active = availableTags.filter { !$0.isArchived && TagNameRules.isValid($0.name) }
-        var usage: [PersistentIdentifier: (count: Int, recency: Int)] = [:]
-        for (index, entry) in entries.prefix(100).enumerated() {
-            for tag in entry.tags {
-                let current = usage[tag.persistentModelID] ?? (0, 0)
-                usage[tag.persistentModelID] = (current.count + 1, max(current.recency, 100 - index))
-            }
-        }
-
-        let normalizedText = TagNameRules.canonical(quickText)
-        var seen: Set<String> = []
-        return active
-            .filter { seen.insert(TagNameRules.canonical($0.name)).inserted }
-            .sorted { lhs, rhs in
-                let left = usage[lhs.persistentModelID] ?? (0, 0)
-                let right = usage[rhs.persistentModelID] ?? (0, 0)
-                let leftMentioned = !normalizedText.isEmpty && normalizedText.contains(TagNameRules.canonical(lhs.name))
-                let rightMentioned = !normalizedText.isEmpty && normalizedText.contains(TagNameRules.canonical(rhs.name))
-                let leftScore = (leftMentioned ? 10_000 : 0) + left.count * 100 + left.recency
-                let rightScore = (rightMentioned ? 10_000 : 0) + right.count * 100 + right.recency
-                if leftScore == rightScore {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return leftScore > rightScore
-            }
-            .prefix(5)
-            .map { $0 }
-    }
 }
 
 private struct TodayEntryRow: View {
@@ -580,26 +636,53 @@ struct QuickCaptureBar: View {
     @Binding var reminderAt: Date?
     @Binding var reminderDelivery: EntryReminderDelivery
     @Binding var selection: NSRange
+    @Binding var selectedGoal: Goal?
+    let availableGoals: [Goal]
+    let goalIsFixed: Bool
     let availableTags: [EntryTag]
-    let suggestedTags: [EntryTag]
+    let prompt: String?
     let save: () -> Void
     let dismiss: () -> Void
+    var clearPrompt: (() -> Void)? = nil
 
     @State private var dragOffset: CGFloat = 0
     @State private var inputLanguage: String?
     @State private var editorHeight: CGFloat = 44
     @State private var isSubmitting = false
     @State private var showBoxPicker = false
+    @State private var showGoalPicker = false
     @State private var showReminderPicker = false
     @StateObject private var dictation = SpeechDictationController()
 
     var body: some View {
         VStack(spacing: 8) {
+            if let prompt {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(prompt)
+                        .font(.bodyText(13.5, weight: .medium))
+                        .foregroundStyle(Palette.ink2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let clearPrompt {
+                        Button(action: clearPrompt) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Palette.ink2)
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove writing direction")
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+
             HStack(alignment: .bottom, spacing: 10) {
                 InlineMentionEditor(
                     text: $text,
                     tags: $selectedTags,
-                    placeholder: "Write something…",
+                    placeholder: prompt == nil ? "Write something…" : "Your answer…",
                     fontSize: 18,
                     scrolls: editorHeight >= 108,
                     autoFocus: true,
@@ -680,9 +763,14 @@ struct QuickCaptureBar: View {
                 }
         )
         .onDisappear { dictation.stop() }
-        .environment(\.layoutDirection, .leftToRight)
         .sheet(isPresented: $showBoxPicker) {
             EntryBoxPicker(selectedBox: $selectedBox)
+        }
+        .sheet(isPresented: $showGoalPicker) {
+            EntryGoalPicker(
+                selectedGoal: $selectedGoal,
+                availableGoals: availableGoals
+            )
         }
         .sheet(isPresented: $showReminderPicker) {
             EntryReminderPicker(
@@ -701,12 +789,35 @@ struct QuickCaptureBar: View {
     }
 
     private var composerAccessoryRow: some View {
-        let visible = suggestedTags.filter { candidate in
-            !selectedTags.contains { $0.persistentModelID == candidate.persistentModelID }
-        }
-
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
+                Button {
+                    if !goalIsFixed { showGoalPicker = true }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "target")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(selectedGoal?.title ?? "Goal")
+                            .font(.bodyText(12, weight: .semibold))
+                            .lineLimit(1)
+                        if !goalIsFixed {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(Palette.meta)
+                        }
+                    }
+                    .foregroundStyle(Palette.ink)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(selectedGoal == nil ? Color.white : Palette.goal)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(goalIsFixed)
+                .accessibilityLabel(goalIsFixed ? "Goal: \(selectedGoal?.title ?? "Goal")" : "Choose goal")
+
                 Button { showBoxPicker = true } label: {
                     EntryBoxChip(box: selectedBox)
                 }
@@ -740,18 +851,6 @@ struct QuickCaptureBar: View {
                 .accessibilityLabel(reminderAt == nil ? "Add reminder" : "Edit reminder")
             }
 
-            if !visible.isEmpty, MentionText.query(in: text) == nil {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 7) {
-                    ForEach(visible) { tag in
-                        Button { insertSuggested(tag) } label: {
-                            MentionCard(tag: tag)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    }
-                }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -767,12 +866,4 @@ struct QuickCaptureBar: View {
         }
     }
 
-    private func insertSuggested(_ tag: EntryTag) {
-        guard !selectedTags.contains(where: { $0.persistentModelID == tag.persistentModelID }) else {
-            return
-        }
-        selectedTags.append(tag)
-        if let last = text.last, !last.isWhitespace { text.append(" ") }
-        text.append("@\(tag.name) ")
-    }
 }

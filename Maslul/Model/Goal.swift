@@ -65,6 +65,16 @@ final class Goal {
     var quarterKey: String = ""
     var createdAt: Date = Date()
 
+    /// Present only for Tracks created in the new user-led flow. Existing
+    /// quarterly Goals remain intact and are not shown as active Tracks.
+    var trackCreatedAt: Date?
+
+    /// Optional context supplied by the user when creating an ongoing goal.
+    /// This can later inform question selection without changing the entry model.
+    var motivation: String?
+    var desiredChange: String?
+    var currentChallenge: String?
+
     /// Set when the quarter is closed. Closed goals stay in history forever.
     var closedAt: Date?
 
@@ -77,13 +87,28 @@ final class Goal {
     @Relationship(deleteRule: .nullify, inverse: \Entry.goal)
     var entries: [Entry] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \GoalCheckpoint.goal)
+    var checkpoints: [GoalCheckpoint] = []
+
     init(title: String, metric: String? = nil, quarter: Quarter = .current(), createdAt: Date = .now) {
         self.title = title
         self.emoji = "🎯"
         self.metric = metric
         self.quarterKey = quarter.key
         self.createdAt = createdAt
+        self.trackCreatedAt = nil
+        self.motivation = nil
+        self.desiredChange = nil
+        self.currentChallenge = nil
         self.entries = []
+        self.checkpoints = []
+    }
+
+    static func track(title: String, createdAt: Date = .now) -> Goal {
+        let track = Goal(title: title, createdAt: createdAt)
+        track.quarterKey = ""
+        track.trackCreatedAt = createdAt
+        return track
     }
 
     /// A deliberate ceiling (US-D1). A fifth goal is not a plan.
@@ -91,10 +116,11 @@ final class Goal {
 }
 
 extension Goal {
+    var isTrack: Bool { trackCreatedAt != nil }
     var quarter: Quarter { Quarter.from(key: quarterKey) ?? .current() }
     var isOpen: Bool { closedAt == nil }
 
     var isCurrent: Bool {
-        isOpen && quarter == Quarter.current()
+        !isTrack && isOpen && quarter == Quarter.current()
     }
 }

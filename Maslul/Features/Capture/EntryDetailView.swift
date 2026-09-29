@@ -12,11 +12,17 @@ struct EntryDetailView: View {
 
     @Query(sort: \Project.createdAt, order: .forward)
     private var projects: [Project]
+    @Query(sort: \Goal.createdAt, order: .forward)
+    private var goals: [Goal]
+    @Query(sort: \GoalCheckpoint.sortIndex, order: .forward)
+    private var checkpoints: [GoalCheckpoint]
 
     @Query(sort: \EntryTag.name, order: .forward)
     private var availableTags: [EntryTag]
 
     @State private var showProjectPicker = false
+    @State private var showGoalPicker = false
+    @State private var showCheckpointPicker = false
     @State private var showDatePicker = false
     @State private var showReminderPicker = false
     @State private var showBoxPicker = false
@@ -42,6 +48,11 @@ struct EntryDetailView: View {
     private var activeProjects: [Project] {
         // A closed project stays on the entries already filed under it.
         projects.filter { $0.isSelectable || $0.persistentModelID == entry.project?.persistentModelID }
+    }
+
+    private var goalCheckpoints: [GoalCheckpoint] {
+        guard let goalID = entry.goal?.persistentModelID else { return [] }
+        return checkpoints.filter { $0.goal?.persistentModelID == goalID }
     }
 
     var body: some View {
@@ -92,7 +103,6 @@ struct EntryDetailView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .environment(\.layoutDirection, .leftToRight)
                     .padding(.bottom, 16)
 
                     bodyCard(minimumEditorHeight: max(150, proxy.size.height * 0.52))
@@ -106,7 +116,6 @@ struct EntryDetailView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .screenBackground()
-        .environment(\.layoutDirection, .leftToRight)
         .presentationDetents([.fraction(0.68), .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
         .presentationBackground(Palette.ground)
@@ -115,6 +124,52 @@ struct EntryDetailView: View {
                 Button(candidate.name) { mutate { entry.project = candidate } }
             }
             Button("No project", role: .destructive) { mutate { entry.project = nil } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Goal", isPresented: $showGoalPicker, titleVisibility: .visible) {
+            ForEach(goals.filter { ($0.isTrack && $0.isOpen) || $0.persistentModelID == entry.goal?.persistentModelID }) { goal in
+                Button(goal.title) {
+                    mutate {
+                        if entry.goal?.persistentModelID != goal.persistentModelID {
+                            entry.checkpoint = nil
+                            entry.checkpointSortIndex = nil
+                            entry.goalRoadmapSortIndex = nil
+                        }
+                        entry.goal = goal
+                    }
+                }
+            }
+            if entry.goal != nil {
+                Button("No goal") {
+                    mutate {
+                        entry.checkpoint = nil
+                        entry.checkpointSortIndex = nil
+                        entry.goal = nil
+                        entry.goalRoadmapSortIndex = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Checkpoint", isPresented: $showCheckpointPicker, titleVisibility: .visible) {
+            ForEach(goalCheckpoints) { checkpoint in
+                Button(checkpoint.title) {
+                    mutate {
+                        if entry.checkpoint?.persistentModelID != checkpoint.persistentModelID {
+                            entry.checkpointSortIndex = nil
+                        }
+                        entry.checkpoint = checkpoint
+                    }
+                }
+            }
+            if entry.checkpoint != nil {
+                Button("No checkpoint") {
+                    mutate {
+                        entry.checkpoint = nil
+                        entry.checkpointSortIndex = nil
+                    }
+                }
+            }
             Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showDatePicker) {
@@ -169,7 +224,7 @@ struct EntryDetailView: View {
 
     private var metadataPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
-            metadataGroup("TYPE") {
+            metadataGroup("Type") {
                 chipFlow {
                     ForEach(EntryType.allCases) { candidate in
                         Chip(title: candidate.title, isOn: entry.type == candidate) {
@@ -179,7 +234,7 @@ struct EntryDetailView: View {
                 }
             }
 
-            metadataGroup("PROJECT") {
+            metadataGroup("Project") {
                 Button {
                     guard !activeProjects.isEmpty else { return }
                     showProjectPicker = true
@@ -189,7 +244,29 @@ struct EntryDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            metadataGroup("ORIGIN & EFFORT") {
+            metadataGroup("Goal") {
+                chipFlow {
+                    Button { showGoalPicker = true } label: {
+                        Chip(
+                            title: entry.goal.map { "\($0.emoji) \($0.title)" } ?? "+ Goal",
+                            isOn: entry.goal != nil
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    if entry.goal != nil, !goalCheckpoints.isEmpty {
+                        Button { showCheckpointPicker = true } label: {
+                            Chip(
+                                title: entry.checkpoint?.title ?? "+ Checkpoint",
+                                isOn: entry.checkpoint != nil
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            metadataGroup("Origin & effort") {
                 chipFlow {
                     Chip(title: entry.originOverride?.shortTitle ?? "From project", isOn: entry.originOverride != nil) {
                         mutate { entry.originOverride = entry.originOverride == nil ? .selfInitiated : nil }
@@ -206,7 +283,6 @@ struct EntryDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .padding(20)
         .background(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).fill(Palette.card))
         .overlay(RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous).stroke(Palette.cardLine, lineWidth: 1))
@@ -219,13 +295,11 @@ struct EntryDetailView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
     }
 
     private func chipFlow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ChipFlow(spacing: 8, rowSpacing: 10) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.layoutDirection, .leftToRight)
     }
 
     private func bodyCard(minimumEditorHeight: CGFloat) -> some View {
@@ -265,7 +339,6 @@ struct EntryDetailView: View {
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .padding(.bottom, 16)
     }
 
@@ -507,13 +580,12 @@ struct EntryDetailView: View {
 
     private var dateRow: some View {
         Button { showDatePicker = true } label: {
-            DetailRow(label: "DATE", trailingChevron: true) {
+            DetailRow(label: "Date", trailingChevron: true) {
                 Text(Fmt.longDate(entry.createdAt))
                     .font(.bodyText(15))
                     .foregroundStyle(Palette.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }
@@ -531,7 +603,7 @@ struct EntryDetailView: View {
 
     private var evidenceRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(text: "ATTACHMENTS")
+            SectionLabel(text: "Attachments")
                 .padding(.top, 15)
 
             HStack(spacing: 8) {
@@ -564,7 +636,6 @@ struct EntryDetailView: View {
                 .padding(.bottom, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
         .overlay(alignment: .top) {
             Rectangle().fill(Palette.lineSoft).frame(height: 1)
         }

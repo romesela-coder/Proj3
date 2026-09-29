@@ -32,7 +32,6 @@ struct CircleButton: View {
                 }
             }
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
-            .environment(\.layoutDirection, .leftToRight)
         }
         .buttonStyle(.plain)
     }
@@ -54,10 +53,6 @@ struct TypeTile: View {
 
                 Spacer(minLength: 12)
 
-                Text(type.latin)
-                    .font(.utility(10.5))
-                    .tracking(1.4)
-                    .foregroundStyle(Palette.meta)
                 Text(type.title)
                     .font(.bodyText(16.5, weight: .bold))
                     .foregroundStyle(Palette.ink)
@@ -338,15 +333,102 @@ struct CardBox<Content: View>: View {
 
 // MARK: - Section label
 
+/// Sentence-case section headings; mono and wide tracking are reserved for data.
 struct SectionLabel: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.utility(10.5))
-            .tracking(1.4)
-            .foregroundStyle(Palette.meta)
+            .font(.bodyText(12.5, weight: .medium))
+            .foregroundStyle(Palette.ink2)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Editable detail header
+
+/// Shared convention for entity detail pages: the title itself enters inline
+/// editing, while each page supplies only its entity-specific fields/actions.
+struct EditableDetailHeader<EditorContent: View, TrailingContent: View>: View {
+    let title: String
+    let parentTitle: String?
+    let isEditing: Bool
+    @Binding var draftTitle: String
+    let titlePlaceholder: String
+    let canSave: Bool
+    let onBeginEditing: () -> Void
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @ViewBuilder let editorContent: () -> EditorContent
+    @ViewBuilder let trailingContent: () -> TrailingContent
+
+    @FocusState private var isTitleFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .top, spacing: 10) {
+                if isEditing {
+                    TextField(titlePlaceholder, text: $draftTitle, axis: .vertical)
+                        .font(.display(29))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1...3)
+                        .focused($isTitleFocused)
+                } else {
+                    Button(action: onBeginEditing) {
+                        Text(title)
+                            .font(.display(29))
+                            .displayTracking(29)
+                            .foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit title: \(title)")
+                }
+
+                trailingContent()
+            }
+
+            if let parentTitle, !parentTitle.isEmpty {
+                Text(parentTitle)
+                    .font(.bodyText(13, weight: .medium))
+                    .foregroundStyle(Palette.meta)
+            }
+
+            if isEditing {
+                editorContent()
+
+                HStack(spacing: 18) {
+                    Button("Save", action: onSave)
+                        .font(.bodyText(13, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
+                        .disabled(!canSave)
+                    Button("Cancel", action: onCancel)
+                        .font(.bodyText(13))
+                        .foregroundStyle(Palette.meta)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: isEditing) { _, editing in
+            isTitleFocused = editing
+        }
+    }
+}
+
+struct DetailEditField: View {
+    let placeholder: String
+    @Binding var text: String
+    var lineLimit: ClosedRange<Int> = 2...5
+
+    var body: some View {
+        TextField(placeholder, text: $text, axis: .vertical)
+            .font(.bodyText(14))
+            .lineLimit(lineLimit)
+            .textInputAutocapitalization(.sentences)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.neutralTile))
     }
 }
 
